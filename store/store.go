@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
 	"github.com/timshannon/badgerhold/v4"
 )
 
