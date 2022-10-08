@@ -12,7 +12,7 @@ type ChatRepo struct {
 	store store.Store
 }
 
-func NewRepo(path string) (*ChatRepo, error) {
+func NewChatRepo(path string) (*ChatRepo, error) {
 	s, err := store.NewStore(path)
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func NewRepo(path string) (*ChatRepo, error) {
 	}, nil
 }
 
-func (c ChatRepo) GetChatList() ([]entity.ChatInfo, error) {
+func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
 	chl, err := c.store.ChatList()
 	ci := make([]entity.ChatInfo,0)
 	if err != nil {
@@ -46,7 +46,7 @@ func (c ChatRepo) GetChatList() ([]entity.ChatInfo, error) {
 	return ci, nil
 }
 
-func (c ChatRepo) GetChat(id string) (*entity.Chat, error) {
+func (c ChatRepo) GetByID(id string) (*entity.Chat, error) {
 	ct, err := c.store.ChatByID(id)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (c ChatRepo) GetChat(id string) (*entity.Chat, error) {
 	}, nil
 }
 
-func (c ChatRepo) AddChatMessage(chatId string, msg entity.Message) error {
+func (c ChatRepo) Add(chatId string, msg entity.Message) error {
 	m := store.BHTextMessage{
 		ID: msg.ID,
 		ChatID: chatId,
