@@ -10,29 +10,29 @@ import (
 type Status int
 
 const (
-    Pending Status = iota
-    Sent
-    Seen
+	Pending Status = iota
+	Sent
+	Seen
 )
 
 type BHContact struct {
-	ID      string
-	Name    string
+	ID   string
+	Name string
 }
 
 type BHChat struct {
-	Name string
-	ID string
+	Name    string
+	ID      string
 	Members []string
 }
 
 type BHTextMessage struct {
-	ID            string
-	ChatID        string `badgerhold:"index"`
-	CreatedAt     time.Time
-	Text          string
-	Status        Status
-	Author        BHContact
+	ID        string
+	ChatID    string `badgerhold:"index"`
+	CreatedAt time.Time
+	Text      string
+	Status    Status
+	Author    BHContact
 }
 
 type Store struct {
@@ -49,7 +49,7 @@ func NewStore(path string) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store {
+	return &Store{
 		bh: *store,
 	}, nil
 
@@ -70,31 +70,31 @@ func (s *Store) InsertChat(ch BHChat) error {
 	return err
 }
 
-func (s *Store) ChatList() ([]BHChat, error){
+func (s *Store) ChatList() ([]BHChat, error) {
 	var res []BHChat
 	q := &badgerhold.Query{}
-	err :=  s.bh.Find(&res, q.Limit(50))
+	err := s.bh.Find(&res, q.Limit(50))
 	return res, err
 }
 
 func (s *Store) ChatMessages(id string) ([]BHTextMessage, error) {
 	var res []BHTextMessage
-	q := &badgerhold.Query{}
-	err :=  s.bh.Find(&res, q.Limit(50))
+	q := badgerhold.Where("ChatID").Eq(id)
+	err := s.bh.Find(&res, q.Limit(50))
 	return res, err
 }
 
 func (s *Store) AllContacts() ([]BHContact, error) {
 	var res []BHContact
 	q := &badgerhold.Query{}
-	err :=  s.bh.Find(&res, q.Limit(50))
+	err := s.bh.Find(&res, q.Limit(50))
 	return res, err
 }
 
 func (s *Store) ContactByIDs(ids []string) ([]BHContact, error) {
 	var res []BHContact
-	q :=  badgerhold.Where("ID").In(ids)
-	err :=  s.bh.Find(&res, q.Limit(50))
+	q := badgerhold.Where("ID").In(badgerhold.Slice(ids)...)
+	err := s.bh.Find(&res, q.Limit(50))
 	return res, err
 }
 
@@ -109,5 +109,3 @@ func (s *Store) ChatByID(id string) (BHChat, error) {
 	err := s.bh.FindOne(&res, badgerhold.Where("ID").Eq(id))
 	return res, err
 }
-
-
