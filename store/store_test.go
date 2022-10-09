@@ -59,7 +59,7 @@ func TestContact(t *testing.T) {
 
 }
 
-func TestChat(t *testing.T){
+func TestChat(t *testing.T) {
 	s, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	test_contact := []store.BHContact{
@@ -86,14 +86,14 @@ func TestChat(t *testing.T){
 	}
 	test_chat := []store.BHChat{
 		{
-			ID: "1",
-			Name: "blue",
-			Members: []string{"1","2"},
+			ID:      "1",
+			Name:    "blue",
+			Members: []string{"1", "2"},
 		},
 		{
-			ID: "2",
-			Name: "blue",
-			Members: []string{"1","3"},
+			ID:      "2",
+			Name:    "blue",
+			Members: []string{"1", "3"},
 		},
 	}
 	for _, val := range test_chat {
@@ -102,48 +102,48 @@ func TestChat(t *testing.T){
 	}
 	test_msg := []store.BHTextMessage{
 		{
-			ID: "1",
+			ID:     "1",
 			ChatID: "1",
 			Author: store.BHContact{
 				ID:   "1",
 				Name: "blue",
 			},
 			CreatedAt: time.Now().Round(0),
-			Text: "asdf cbdgf",
-			Status: store.Pending,
+			Text:      "asdf cbdgf",
+			Status:    store.Pending,
 		},
 		{
-			ID: "2",
+			ID:     "2",
 			ChatID: "1",
 			Author: store.BHContact{
 				ID:   "2",
 				Name: "red",
 			},
 			CreatedAt: time.Now().Round(0),
-			Text: "123 123 345",
-			Status: store.Pending,
+			Text:      "123 123 345",
+			Status:    store.Pending,
 		},
 		{
-			ID: "3",
+			ID:     "3",
 			ChatID: "2",
 			Author: store.BHContact{
 				ID:   "3",
 				Name: "blue",
 			},
 			CreatedAt: time.Now().Round(0),
-			Text: "asdrytxcv 567567",
-			Status: store.Pending,
+			Text:      "asdrytxcv 567567",
+			Status:    store.Pending,
 		},
 		{
-			ID: "4",
+			ID:     "4",
 			ChatID: "2",
 			Author: store.BHContact{
 				ID:   "1",
 				Name: "blue",
 			},
 			CreatedAt: time.Now().Round(0),
-			Text: "x.zcvm,dlfkjgerotiu ",
-			Status: store.Pending,
+			Text:      "x.zcvm,dlfkjgerotiu ",
+			Status:    store.Pending,
 		},
 	}
 	for _, val := range test_msg {
@@ -151,7 +151,7 @@ func TestChat(t *testing.T){
 		require.NoError(t, err)
 	}
 
-	res, err:=s.ChatList()
+	res, err := s.ChatList()
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res, test_chat) {
 		t.Error("in and out are not equal")
