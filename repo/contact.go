@@ -9,13 +9,9 @@ type ContactRepo struct {
 	store store.Store
 }
 
-func NewContactRepo(path string) (*ContactRepo, error) {
-	s, err := store.NewStore(path)
-	if err != nil {
-		return nil, err
-	}
+func NewContactRepo(store store.Store) (*ContactRepo, error) {
 	return &ContactRepo{
-		store: *s,
+		store: store,
 	}, nil
 }
 

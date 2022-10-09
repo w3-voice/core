@@ -12,13 +12,9 @@ type ChatRepo struct {
 	store store.Store
 }
 
-func NewChatRepo(path string) (*ChatRepo, error) {
-	s, err := store.NewStore(path)
-	if err != nil {
-		return nil, err
-	}
+func NewChatRepo(store store.Store) (*ChatRepo, error) {
 	return &ChatRepo{
-		store: *s,
+		store: store,
 	}, nil
 }
 
@@ -96,6 +92,23 @@ func (c ChatRepo) Add(chatId string, msg entity.Message) error {
 		Author: store.BHContact(msg.Author),
 	}
 	err := c.store.InsertTextMessage(m)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c ChatRepo) Create(chat entity.ChatInfo) error {
+	m := []string{}
+	for _, val := range chat.Members {
+		m = append(m, val.ID)
+	}
+	ci := store.BHChat{
+		ID: chat.ID,
+		Name: chat.Name,
+		Members: m,
+	}
+	err := c.store.InsertChat(ci)
 	if err != nil {
 		return err
 	}
