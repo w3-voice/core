@@ -8,17 +8,17 @@ import (
 
 
 
-type ChatRepo struct {
+type Repo struct {
 	store store.Store
 }
 
-func NewChatRepo(store store.Store) (*ChatRepo, error) {
-	return &ChatRepo{
+func NewChatRepo(store store.Store) (*Repo, error) {
+	return &Repo{
 		store: store,
 	}, nil
 }
 
-func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
+func (c Repo) GetAllChat() ([]entity.ChatInfo, error) {
 	chl, err := c.store.ChatList()
 	ci := make([]entity.ChatInfo,0)
 	if err != nil {
@@ -42,7 +42,7 @@ func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
 	return ci, nil
 }
 
-func (c ChatRepo) GetByID(id string) (*entity.Chat, error) {
+func (c Repo) GetByIDChat(id string) (*entity.Chat, error) {
 	ct, err := c.store.ChatByID(id)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (c ChatRepo) GetByID(id string) (*entity.Chat, error) {
 	}, nil
 }
 
-func (c ChatRepo) Add(chatId string, msg entity.Message) error {
+func (c Repo) AddMessage(chatId string, msg entity.Message) error {
 	m := store.BHTextMessage{
 		ID: msg.ID,
 		ChatID: chatId,
@@ -98,7 +98,7 @@ func (c ChatRepo) Add(chatId string, msg entity.Message) error {
 	return nil
 }
 
-func (c ChatRepo) Create(chat entity.ChatInfo) error {
+func (c Repo) CreateChat(chat entity.ChatInfo) error {
 	m := []string{}
 	for _, val := range chat.Members {
 		m = append(m, val.ID)
@@ -109,6 +109,44 @@ func (c ChatRepo) Create(chat entity.ChatInfo) error {
 		Members: m,
 	}
 	err := c.store.InsertChat(ci)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
+func (c Repo) GetAllContact() ([]entity.Contact, error) {
+	cons := make([]entity.Contact, 0)
+	bhcl, err := c.store.AllContacts()
+	if err != nil {
+		return nil, err
+	}
+	for _, val := range bhcl {
+		cons = append(cons, entity.Contact{
+			Name: val.Name,
+			ID:   val.ID,
+		})
+	}
+	return cons, nil
+}
+
+func (c Repo) GetByIDContact(id string) (*entity.Contact, error) {
+	con, err := c.store.ContactByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return &entity.Contact{
+		ID:   con.ID,
+		Name: con.Name,
+	}, nil
+}
+
+func (c Repo) AddContact(con entity.Contact) error {
+	err := c.store.InsertContact(store.BHContact{
+		Name: con.Name,
+		ID:   con.ID,
+	})
 	if err != nil {
 		return err
 	}
