@@ -36,3 +36,9 @@ type Chat struct {
 	Messages []Message
 }
 
+func (c Chat) ID() string {
+	return c.Info.ID
+}
+
+
+

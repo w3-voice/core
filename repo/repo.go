@@ -82,6 +82,27 @@ func (c Repo) GetByIDChat(id string) (*entity.Chat, error) {
 	}, nil
 }
 
+func(c Repo) GetChatInfoByID(id string) (*entity.ChatInfo, error) {
+	ct, err := c.store.ChatByID(id)
+	if err != nil {
+		return nil, err
+	}
+	members := make([]entity.Contact, 0)
+	m, _ := c.store.ContactByIDs(ct.Members)
+	for _, me := range m {
+		members = append(members, entity.Contact{
+			ID: me.ID,
+			Name: me.Name,
+		})
+	}
+	return &entity.ChatInfo{
+			ID: ct.ID,
+			Name: ct.Name,
+			Members: members,
+		
+	}, nil
+}
+
 func (c Repo) AddMessage(chatId string, msg entity.Message) error {
 	m := store.BHTextMessage{
 		ID: msg.ID,
