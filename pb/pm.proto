@@ -1,0 +1,29 @@
+syntax = "proto3";
+option go_package = "./pb";
+package pm.pb;
+
+
+
+message Message {
+  Contact author = 1;
+  string id = 2;
+  int64 createdAt = 3 [jstype = JS_NUMBER];
+  string type = 4;
+  string sig = 6;
+  string chatId = 7;
+  string text = 8;
+}
+
+message Text {
+  string text = 1;
+}
+
+message MessageStatus {
+  int64 msgId = 1;
+  string status = 2;
+}
+
+message Contact {
+  string name = 1;
+  string id = 2;
+}
