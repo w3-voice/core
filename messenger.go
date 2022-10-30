@@ -3,11 +3,11 @@ package core
 import (
 	"time"
 
-	"github.com/bee-messenger/core/entity"
-	"github.com/bee-messenger/core/pb"
-	"github.com/bee-messenger/core/repo"
-	"github.com/bee-messenger/core/store"
 	"github.com/google/uuid"
+	"github.com/hood-chat/core/entity"
+	"github.com/hood-chat/core/pb"
+	"github.com/hood-chat/core/repo"
+	"github.com/hood-chat/core/store"
 	"github.com/libp2p/go-libp2p-core/host"
 )
 
@@ -71,7 +71,7 @@ func (m *Messenger) CreateChat(id string, members []entity.Contact, name string)
 		panic("its failed")
 	}
 	return &Chat{
-		me: &m.identity,
+		me:   &m.identity,
 		repo: &m.repo,
 		c: &entity.Chat{
 			Info:     cht,

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bee-messenger/core"
+	"github.com/hood-chat/core"
 
-	"github.com/bee-messenger/core/entity"
 	"github.com/google/uuid"
+	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
