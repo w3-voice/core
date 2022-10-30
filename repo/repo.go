@@ -1,12 +1,9 @@
 package repo
 
 import (
-	"github.com/bee-messenger/core/store"
-	"github.com/bee-messenger/core/entity"
+	"github.com/hood-chat/core/entity"
+	"github.com/hood-chat/core/store"
 )
-
-
-
 
 type Repo struct {
 	store store.Store
@@ -20,7 +17,7 @@ func NewChatRepo(store store.Store) (*Repo, error) {
 
 func (c Repo) GetAllChat() ([]entity.ChatInfo, error) {
 	chl, err := c.store.ChatList()
-	ci := make([]entity.ChatInfo,0)
+	ci := make([]entity.ChatInfo, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -29,13 +26,13 @@ func (c Repo) GetAllChat() ([]entity.ChatInfo, error) {
 		m, _ := c.store.ContactByIDs(val.Members)
 		for _, me := range m {
 			members = append(members, entity.Contact{
-				ID: me.ID,
+				ID:   me.ID,
 				Name: me.Name,
 			})
 		}
 		ci = append(ci, entity.ChatInfo{
-			ID: val.ID,
-			Name: val.Name,
+			ID:      val.ID,
+			Name:    val.Name,
 			Members: members,
 		})
 	}
@@ -51,7 +48,7 @@ func (c Repo) GetByIDChat(id string) (*entity.Chat, error) {
 	m, _ := c.store.ContactByIDs(ct.Members)
 	for _, me := range m {
 		members = append(members, entity.Contact{
-			ID: me.ID,
+			ID:   me.ID,
 			Name: me.Name,
 		})
 	}
@@ -62,27 +59,27 @@ func (c Repo) GetByIDChat(id string) (*entity.Chat, error) {
 	}
 	for _, m := range bhm {
 		messages = append(messages, entity.Message{
-			ID: m.ID,
+			ID:        m.ID,
 			CreatedAt: m.CreatedAt,
-			Text: m.Text,
-			Status: entity.Status(m.Status),
+			Text:      m.Text,
+			Status:    entity.Status(m.Status),
 			Author: entity.Contact{
-				ID: m.Author.ID,
+				ID:   m.Author.ID,
 				Name: m.Author.Name,
 			},
 		})
 	}
 	return &entity.Chat{
 		Info: entity.ChatInfo{
-			ID: ct.ID,
-			Name: ct.Name,
+			ID:      ct.ID,
+			Name:    ct.Name,
 			Members: members,
 		},
 		Messages: messages,
 	}, nil
 }
 
-func(c Repo) GetChatInfoByID(id string) (*entity.ChatInfo, error) {
+func (c Repo) GetChatInfoByID(id string) (*entity.ChatInfo, error) {
 	ct, err := c.store.ChatByID(id)
 	if err != nil {
 		return nil, err
@@ -91,26 +88,25 @@ func(c Repo) GetChatInfoByID(id string) (*entity.ChatInfo, error) {
 	m, _ := c.store.ContactByIDs(ct.Members)
 	for _, me := range m {
 		members = append(members, entity.Contact{
-			ID: me.ID,
+			ID:   me.ID,
 			Name: me.Name,
 		})
 	}
 	return &entity.ChatInfo{
-			ID: ct.ID,
-			Name: ct.Name,
-			Members: members,
-		
+		ID:      ct.ID,
+		Name:    ct.Name,
+		Members: members,
 	}, nil
 }
 
 func (c Repo) AddMessage(chatId string, msg entity.Message) error {
 	m := store.BHTextMessage{
-		ID: msg.ID,
-		ChatID: chatId,
+		ID:        msg.ID,
+		ChatID:    chatId,
 		CreatedAt: msg.CreatedAt,
-		Text: msg.Text,
-		Status: store.Status(msg.Status),
-		Author: store.BHContact(msg.Author),
+		Text:      msg.Text,
+		Status:    store.Status(msg.Status),
+		Author:    store.BHContact(msg.Author),
 	}
 	err := c.store.InsertTextMessage(m)
 	if err != nil {
@@ -125,8 +121,8 @@ func (c Repo) CreateChat(chat entity.ChatInfo) error {
 		m = append(m, val.ID)
 	}
 	ci := store.BHChat{
-		ID: chat.ID,
-		Name: chat.Name,
+		ID:      chat.ID,
+		Name:    chat.Name,
 		Members: m,
 	}
 	err := c.store.InsertChat(ci)
@@ -135,7 +131,6 @@ func (c Repo) CreateChat(chat entity.ChatInfo) error {
 	}
 	return nil
 }
-
 
 func (c Repo) GetAllContact() ([]entity.Contact, error) {
 	cons := make([]entity.Contact, 0)

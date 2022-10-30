@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bee-messenger/core/store"
+	"github.com/hood-chat/core/store"
 	"github.com/stretchr/testify/require"
 )
 

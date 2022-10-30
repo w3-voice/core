@@ -6,8 +6,8 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 
-	"github.com/bee-messenger/core/pb"
-	"github.com/bee-messenger/core/utils"
+	"github.com/hood-chat
+	"github.com/hood-chat
 	host "github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
