@@ -8,7 +8,7 @@ import (
 	"github.com/bee-messenger/core/repo"
 	"github.com/bee-messenger/core/store"
 	"github.com/google/uuid"
-	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p-core/host"
 )
 
 type Handler func(msg Envelop) error
@@ -52,7 +52,7 @@ func MessengerBuilder(path string, h host.Host) Messenger {
 
 func (m *Messenger) GetChat(id string) (*Chat, error) {
 	chat := Chat{
-		me: &m.identity,
+		me:   &m.identity,
 		repo: &m.repo,
 		c:    nil,
 	}

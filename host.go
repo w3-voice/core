@@ -10,7 +10,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
 	libp2p "github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -109,6 +109,11 @@ func Create(ctx context.Context, configRoot string) (*rhost.RoutedHost, error) {
 	cfg.Bootstrap = append(cfg.Bootstrap,
 		"/ip4/34.224.40.105/udp/4001/quic/p2p/12D3KooWEftKAarKSc1bhQfgn5aoW5UnaSqCr9UMhRoqhsBA6MmX",
 		"/ip4/54.235.11.104/udp/4001/quic/p2p/12D3KooWEHmZunko2dupAR9J3Ydo3yN8aW7oZWkAxv5zsNL7UPRH",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+		"/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 	)
 
 	bootstrapPeers, _ := cfg.BootstrapPeers()
