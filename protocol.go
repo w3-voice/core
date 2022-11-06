@@ -14,7 +14,7 @@ import (
 	"github.com/libp2p/go-msgio/protoio"
 )
 
-var log = logging.Logger("pm")
+var log = logging.Logger("PM")
 
 const (
 	MessageTimeout = time.Second * 60
@@ -41,21 +41,36 @@ func NewPMService(h host.Host, cb func(*pb.Message)) *PMService {
 	return pms
 }
 
+func (pms *PMService) AddPeer(){
+	
+}
+
 func (pms *PMService) Send(env *Envelop) {
 	pbmsg := &pb.Message{
-		Text:      env.msg.Text,
-		Id:        env.msg.ID,
+		Text:      env.Msg.Text,
+		Id:        env.Msg.ID,
 		ChatId:    env.chatID,
 		CreatedAt: time.Now().Unix(),
 		Type:      "text",
 		Sig:       "",
 		Author: &pb.Contact{
-			Id:   env.msg.Author.ID,
-			Name: env.msg.Author.Name,
+			Id:   env.Msg.Author.ID,
+			Name: env.Msg.Author.Name,
 		},
 	}
 	p, err := peer.Decode(env.To)
 	if err != nil {
+		log.Errorf("can not parse peerID: %s", err)
+		return
+	}
+	adderInfo, err := peer.AddrInfoFromString("/p2p/"+env.To)
+	if err != nil {
+		log.Errorf("can not parse adderInfo: %s", err)
+		return
+	}
+	err = pms.Host.Connect(context.Background(), *adderInfo)
+	if err != nil {
+		log.Errorf("can not connect to peer: %s reason: %s",env.To, err)
 		return
 	}
 	send(context.Background(), pms.Host, pbmsg, p)

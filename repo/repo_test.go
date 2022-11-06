@@ -11,12 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChat(t *testing.T) {
+func TestContact(t *testing.T) {
 	s, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
-
-	chrepo, err := repo.NewChatRepo(*s)
-	require.NoError(t, err)
+	rc := repo.NewContactRepo(s)
 
 	test_contact := []entity.Contact{
 		{
@@ -37,114 +35,166 @@ func TestChat(t *testing.T) {
 		},
 	}
 	for _, val := range test_contact {
-		err := chrepo.AddContact(val)
+		err := rc.Add(val)
 		require.NoError(t, err)
 	}
-	test_chat := []entity.Chat{
+	res2, err := rc.GetAll()
+	require.NoError(t, err)
+	if !reflect.DeepEqual(res2, test_contact) {
+		t.Error("in and out are not equal")
+	}
+}
+
+func TestChat(t *testing.T) {
+	s, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+
+	chrepo:= repo.NewChatRepo(s)
+	rc := repo.NewContactRepo(s)
+
+	test_contact := []entity.Contact{
 		{
-			Info: entity.ChatInfo{
-				ID:   "1",
-				Name: "blue",
-				Members: []entity.Contact{
-					{
-						ID:   "1",
-						Name: "blue",
-					},
-					{
-						ID:   "2",
-						Name: "red",
-					}},
-			},
-			Messages: []entity.Message{
-				{
-					ID: "1",
-					Author: entity.Contact{
-						ID:   "1",
-						Name: "blue",
-					},
-					CreatedAt: time.Now().Round(0),
-					Text:      "asdf cbdgf",
-					Status:    entity.Pending,
-				},
-				{
-					ID: "2",
-					Author: entity.Contact{
-						ID:   "2",
-						Name: "red",
-					},
-					CreatedAt: time.Now().Round(0),
-					Text:      "123 123 345",
-					Status:    entity.Pending,
-				},
-			},
+			ID:   "1",
+			Name: "blue",
 		},
 		{
-			Info: entity.ChatInfo{
-				ID:   "2",
-				Name: "blue",
-				Members: []entity.Contact{
-					{
-						ID:   "1",
-						Name: "blue",
-					},
-					{
-						ID:   "3",
-						Name: "blue",
-					}},
-			},
-			Messages: []entity.Message{
-				{
-					ID: "3",
-					Author: entity.Contact{
-						ID:   "3",
-						Name: "blue",
-					},
-					CreatedAt: time.Now().Round(0),
-					Text:      "234vbxvb cvdfrg ",
-					Status:    entity.Pending,
-				},
-				{
-					ID: "4",
-					Author: entity.Contact{
-						ID:   "1",
-						Name: "blue",
-					},
-					CreatedAt: time.Now().Round(0),
-					Text:      "dsgfcvbr56 etrtert",
-					Status:    entity.Pending,
-				},
-			},
+			ID:   "2",
+			Name: "red",
+		},
+		{
+			ID:   "3",
+			Name: "blue",
+		},
+		{
+			ID:   "4",
+			Name: "blue",
 		},
 	}
-	chat0 := test_chat[0]
-	err = chrepo.CreateChat(chat0.Info)
+	for _, val := range test_contact {
+		err := rc.Add(val)
+		require.NoError(t, err)
+	}
+	chatinfo0 := entity.ChatInfo{
+		ID:   "1",
+		Name: "blue",
+		Members: []entity.Contact{
+			{
+				ID:   "1",
+				Name: "blue",
+			},
+			{
+				ID:   "2",
+				Name: "red",
+			}},
+	}
+	chatinfo1 := entity.ChatInfo{
+		ID:   "2",
+		Name: "blue",
+		Members: []entity.Contact{
+			{
+				ID:   "1",
+				Name: "blue",
+			},
+			{
+				ID:   "3",
+				Name: "blue",
+			}},
+	}
+
+	chat0 := []entity.Message{
+		{
+			ID: "1",
+			Author: entity.Contact{
+				ID:   "1",
+				Name: "blue",
+			},
+			CreatedAt: time.Now().Round(0),
+			Text:      "asdf cbdgf",
+			Status:    entity.Pending,
+		},
+		{
+			ID: "2",
+			Author: entity.Contact{
+				ID:   "2",
+				Name: "red",
+			},
+			CreatedAt: time.Now().Round(0),
+			Text:      "123 123 345",
+			Status:    entity.Pending,
+		},
+	}
+
+	chat1 := []entity.Message{
+		{
+			ID: "3",
+			Author: entity.Contact{
+				ID:   "3",
+				Name: "blue",
+			},
+			CreatedAt: time.Now().Round(0),
+			Text:      "234vbxvb cvdfrg ",
+			Status:    entity.Pending,
+		},
+		{
+			ID: "4",
+			Author: entity.Contact{
+				ID:   "1",
+				Name: "blue",
+			},
+			CreatedAt: time.Now().Round(0),
+			Text:      "dsgfcvbr56 etrtert",
+			Status:    entity.Pending,
+		},
+	}
+
+	err = chrepo.Add(chatinfo0)
+	require.NoError(t, err)
+	rmsg := repo.NewMessageRepo(s, chatinfo0.ID)
+	rmsg.Add(chat0[0])
+	rmsg.Add(chat0[1])
+
+	err = chrepo.Add(chatinfo1)
 	require.NoError(t, err)
 
-	chrepo.AddMessage(chat0.Info.ID, chat0.Messages[0])
-	chrepo.AddMessage(chat0.Info.ID, chat0.Messages[1])
+	rmsg = repo.NewMessageRepo(s, chatinfo1.ID)
+	rmsg.Add(chat1[0])
+	rmsg.Add(chat1[1])
 
-	chat1 := test_chat[1]
-	err = chrepo.CreateChat(chat1.Info)
+	res, err := chrepo.GetAll()
 	require.NoError(t, err)
 
-	chrepo.AddMessage(chat1.Info.ID, chat1.Messages[0])
-	chrepo.AddMessage(chat1.Info.ID, chat1.Messages[1])
-
-	res, err := chrepo.GetAllChat()
-	require.NoError(t, err)
-
-	if !reflect.DeepEqual(res, []entity.ChatInfo{test_chat[0].Info, test_chat[1].Info}) {
+	if !reflect.DeepEqual(res, []entity.ChatInfo{chatinfo0, chatinfo1}) {
 		t.Error("in and out are not equal")
 	}
 
 	t.Logf("result %v", res)
-	t.Logf("expected %v", test_chat)
 
-	res2, err := chrepo.GetByIDChat("1")
+	res2, err := chrepo.GetByID("1")
 	require.NoError(t, err)
-	if !reflect.DeepEqual(*res2, test_chat[0]) {
+	if !reflect.DeepEqual(res2, chatinfo0) {
 		t.Error("in and out are not equal")
 	}
 	t.Logf("result %v", res2)
-	t.Logf("expected %v", test_chat[0])
+	t.Logf("expected %v", chatinfo0)
+}
+
+
+func TestIdentity(t *testing.T){
+	s, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+
+	chrepo:= repo.NewIdentityRepo(s)
+	require.NoError(t, err)
+
+	_, err = chrepo.Get()
+	require.Error(t, err)
+
+	err = chrepo.Set(entity.Identity{ID:"123",Name:"farhoud", PrivKey: "mykey" })
+	require.NoError(t, err)
+
+	id, err := chrepo.Get()
+	require.NoError(t, err)
+
+	t.Log(id)
+
 }

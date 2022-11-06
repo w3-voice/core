@@ -1,6 +1,9 @@
 package core
 
 import (
+	"context"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -8,75 +11,144 @@ import (
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
-	"github.com/libp2p/go-libp2p-core/host"
 )
 
-type Handler func(msg Envelop) error
-type Messenger struct {
-	repo     repo.Repo
-	identity entity.Contact
-	pms      PMService
-}
-
 type Envelop struct {
-	msg    entity.Message
+	Msg    entity.Message
 	chatID string
 	To     string
 }
 
-func MessengerBuilder(path string, h host.Host) Messenger {
+type Handler func(msg Envelop) error
+
+type Messenger struct {
+	store    *store.Store
+	identity entity.Identity
+	pms      PMService
+}
+
+func MessengerBuilder(path string) Messenger {
+
+	err := checkWritable(path)
+	if err != nil {
+		panic("path is not writable ")
+	}
 	s, err := store.NewStore(path + "/store")
 	if err != nil {
 		panic(err)
 	}
-
-	user := entity.Contact{
-		ID:   h.ID().String(),
-		Name: "user",
-	}
-
-	chrepo, err := repo.NewChatRepo(*s)
+	rIdentity := repo.NewIdentityRepo(s)
+	id, err := rIdentity.Get()
 	if err != nil {
-		panic(err)
+		return Messenger{
+			store: s,
+		}
 	}
-
 	m := Messenger{
-		repo:     *chrepo,
-		identity: user,
+		store:    s,
+		identity: id,
 	}
-	pms := NewPMService(h, m.MessageHandler)
-	m.pms = *pms
 
+	m.Start()
 	return m
 }
 
-func (m *Messenger) GetChat(id string) (*Chat, error) {
-	chat := Chat{
-		me:   &m.identity,
-		repo: &m.repo,
-		c:    nil,
-	}
-	return chat.ByID(id)
+func (m Messenger) getContactRepo() repo.IRepo[entity.Contact] {
+	return repo.NewContactRepo(m.store)
 }
 
-func (m *Messenger) CreateChat(id string, members []entity.Contact, name string) *Chat {
-	cht := entity.ChatInfo{
+func (m Messenger) getIdentityRepo() repo.IRepo[entity.Identity] {
+	return repo.NewIdentityRepo(m.store)
+}
+
+func (m Messenger) getChatRepo() repo.IRepo[entity.ChatInfo] {
+	return repo.NewChatRepo(m.store)
+}
+
+func (m Messenger) getMessageRepo(chatID string) repo.IRepo[entity.Message] {
+	return repo.NewMessageRepo(m.store, chatID)
+}
+
+func (m *Messenger) Start() {
+	h, err := CreateHost(context.Background(), &m.identity)
+	if err != nil {
+		panic(err)
+	}
+	pms := NewPMService(h, m.MessageHandler)
+	m.pms = *pms
+}
+
+func (m *Messenger) IsLogin() bool {
+	rIdentity := m.getIdentityRepo()
+	_, err := rIdentity.Get()
+	return err == nil
+}
+
+func (m *Messenger) SignUp(name string) (*entity.Identity, error) {
+	rIdentity := m.getIdentityRepo()
+	iden, err := entity.CreateIdentity(name)
+	if err != nil {
+		return nil, err
+	}
+	err = rIdentity.Set(iden)
+	m.identity = iden
+	if err != nil {
+		return nil, err
+	}
+	m.Start()
+	return &iden, nil
+}
+
+func (m *Messenger) GetIdentity() (entity.Identity, error) {
+	return m.identity, nil
+}
+
+func (m *Messenger) GetContacts() ([]entity.Contact, error) {
+	rContact := m.getContactRepo()
+	return rContact.GetAll()
+}
+
+func (m *Messenger) GetContact(id string) (entity.Contact, error) {
+	rContact := m.getContactRepo()
+	return rContact.GetByID(id)
+}
+
+func (m *Messenger) AddContact(c entity.Contact) error {
+	rContact := m.getContactRepo()
+	return rContact.Add(c)
+}
+
+func (m *Messenger) GetChat(id string) (entity.ChatInfo, error) {
+	rChat := m.getChatRepo()
+	ci := entity.ChatInfo{}
+	c, err := rChat.GetByID(id)
+	if err != nil {
+		return ci, err
+	}
+	return c, nil
+}
+
+func (m *Messenger) GetChats() ([]entity.ChatInfo, error) {
+	rChat := repo.NewChatRepo(m.store)
+	return rChat.GetAll()
+}
+
+func (m *Messenger) CreatePMChat(contactID string) (entity.ChatInfo, error) {
+	c, err := m.GetContact(contactID)
+	chatID := m.generatePMChatID(c)
+	if err != nil {
+		return entity.ChatInfo{}, err
+	}
+	chat := m.CreateChat(chatID, []entity.Contact{*m.identity.Me(), c}, c.Name)
+	err = m.getChatRepo().Add(chat)
+	return chat, err
+}
+
+func (m *Messenger) CreateChat(id string, members []entity.Contact, name string) entity.ChatInfo {
+	return entity.ChatInfo{
 		ID:      id,
 		Name:    name,
 		Members: members,
-	}
-
-	err := m.repo.CreateChat(cht)
-	if err != nil {
-		panic("its failed")
-	}
-	return &Chat{
-		me:   &m.identity,
-		repo: &m.repo,
-		c: &entity.Chat{
-			Info:     cht,
-			Messages: []entity.Message{},
-		},
 	}
 }
 
@@ -84,20 +156,26 @@ func (c *Messenger) SendMessage(env Envelop) {
 	c.pms.Send(&env)
 }
 
-func (c *Messenger) MessageHandler(msg *pb.Message) {
-	con := entity.Contact{
-		ID:   msg.Author.Id,
-		Name: msg.Author.Name,
-	}
-	ch := Chat{
-		repo: &c.repo,
-		c:    nil,
-	}
-	chat, err := ch.ByID(msg.GetChatId())
+func (m *Messenger) MessageHandler(msg *pb.Message) {
+	rCon := m.getContactRepo()
+	con , err := rCon.GetByID(msg.Author.Id)
 	if err != nil {
-		chat = c.CreateChat(msg.GetChatId(), []entity.Contact{c.identity, con}, msg.Author.Id)
+		con = entity.Contact{
+			ID:   msg.Author.Id,
+			Name: msg.Author.Name,
+		}
+		err := rCon.Add(con)
+		if err != nil {
+			panic(err)
+		}
 	}
 
+	rchat := m.getChatRepo()
+	chat, err := rchat.GetByID(msg.GetChatId())
+	if err != nil {
+		chat = m.CreateChat(msg.GetChatId(), []entity.Contact{*m.identity.Me(), con}, msg.Author.Id)
+		rchat.Add(chat)
+	}
 	newMsg := entity.Message{
 		ID:        msg.Id,
 		CreatedAt: time.Now(),
@@ -105,71 +183,46 @@ func (c *Messenger) MessageHandler(msg *pb.Message) {
 		Status:    entity.Sent,
 		Author:    con,
 	}
-
-	err = chat.AddMessage(newMsg)
+	rmsg := m.getMessageRepo(chat.ID)
+	err = rmsg.Add(newMsg)
 	if err != nil {
 		panic(err)
 	}
 }
 
-type Chat struct {
-	repo *repo.Repo
-	c    *entity.Chat
-	me   *entity.Contact
-}
+func (m *Messenger) NewMessage(chatID string, content string) (*Envelop, error) {
 
-func (c *Chat) NewMessage(content string) (*Envelop, error) {
-	msg := &entity.Message{
+	msg := entity.Message{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 		Text:      content,
 		Status:    entity.Pending,
-		Author:    *c.me,
+		Author:    *m.identity.Me(),
 	}
-	err := c.repo.AddMessage(c.c.ID(), *msg)
+	rmsg := m.getMessageRepo(chatID)
+	err := rmsg.Add(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	rchat := m.getChatRepo()
+	chat, err := rchat.GetByID(chatID)
 	to := []string{}
-	for _, val := range c.c.Info.Members {
+	for _, val := range chat.Members {
 		if val.ID != msg.Author.ID {
 			to = append(to, val.ID)
 		}
 	}
-
-	return &Envelop{msg: *msg, To: to[0], chatID: c.c.ID()}, err
+	m.SendMessage(Envelop{Msg: msg, To: to[0], chatID: chatID})
+	return &Envelop{Msg: msg, To: to[0], chatID: chatID}, err
 }
 
-func (c *Chat) ID() string {
-	return c.c.ID()
+func (m *Messenger) GetMessages(chatID string) ([]entity.Message, error) {
+	return m.getMessageRepo(chatID).GetAll()
 }
 
-func (c *Chat) AddMessage(msg entity.Message) error {
-	return c.repo.AddMessage(c.c.ID(), msg)
-}
-
-func (c *Chat) GetMessages() ([]entity.Message, error) {
-	chat, err := c.repo.GetByIDChat(c.c.ID())
-	return chat.Messages, err
-}
-
-func (c Chat) ByID(chatID string) (*Chat, error) {
-	chat, err := c.repo.GetByIDChat(chatID)
-	if err != nil {
-		return nil, err
-		// newChat := &entity.ChatInfo{
-		// 	ID:      msg.GetChatId(),
-		// 	Name:    con.Name,
-		// 	Members: []entity.Contact{*con, c.identity},
-		// }
-		// err := c.repo.CreateChat(*newChat)
-		// if err != nil {
-		// 	return err
-		// }
-		// chat = &entity.Chat{
-		// 	Info:     *newChat,
-		// 	Messages: nil,
-		// }
-	}
-	return &Chat{
-		repo: c.repo,
-		c:    chat,
-	}, nil
+func (m *Messenger) generatePMChatID(con entity.Contact) string {
+	cons := []string{con.ID, m.identity.Me().ID}
+	sort.Strings(cons)
+	return strings.Join(cons, "")
 }

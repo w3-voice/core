@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -14,6 +15,12 @@ const (
 	Sent
 	Seen
 )
+
+type BHIdentity struct {
+	ID   string
+	Name string
+	Key  string
+}
 
 type BHContact struct {
 	ID   string
@@ -107,5 +114,21 @@ func (s *Store) ContactByID(id string) (BHContact, error) {
 func (s *Store) ChatByID(id string) (BHChat, error) {
 	var res BHChat
 	err := s.bh.FindOne(&res, badgerhold.Where("ID").Eq(id))
+	return res, err
+}
+
+func (s *Store) SetIdentity(id BHIdentity) error {
+	err := s.bh.Insert(id.ID, id)
+	return err
+}
+
+func (s *Store) GetIdentity() (BHIdentity, error) {
+	var res BHIdentity
+	q := &badgerhold.Query{}
+	err := s.bh.FindOne(&res, q)
+	if err != nil {
+		fmt.Printf("we are fucked")
+		return BHIdentity{}, err
+	}
 	return res, err
 }

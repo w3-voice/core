@@ -171,3 +171,21 @@ func TestChat(t *testing.T) {
 	t.Log("result ", res3, test_msg[:2])
 
 }
+
+
+func TestIdentity(t *testing.T) {
+	s, err := store.NewStore(t.TempDir())
+	expected := store.BHIdentity{ID:"001", Name: "farhoud", Key: "privatekey"}
+	require.NoError(t, err)
+
+	err = s.SetIdentity(expected)
+	require.NoError(t, err)
+
+	res, err := s.GetIdentity()
+	require.NoError(t, err)
+	t.Log(res)
+	t.Log(expected)
+	if res != expected {
+		t.Errorf("net equal %s, %s", res, expected)
+	}
+}
