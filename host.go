@@ -7,35 +7,42 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
 	libp2p "github.com/libp2p/go-libp2p"
+	host "github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	rhost "github.com/libp2p/go-libp2p/p2p/host/routed"
+	rh "github.com/libp2p/go-libp2p/p2p/host/routed"
 
 	"github.com/ipfs/kubo/core/bootstrap"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-const (
-	algorithmOptionName = "algorithm"
-	bitsOptionName      = "bits"
-	emptyRepoOptionName = "empty-repo"
-	profileOptionName   = "profile"
-)
+type HostBuilder func(Option) (host.Host, error)
 
-func CreateHost(ctx context.Context, identity *entity.Identity) (*rhost.RoutedHost, error) {
+type Option struct {
+	lpOpt []libp2p.Option
+	ID    peer.ID
+}
+
+func appendIdentity(opt *Option, identity *entity.Identity) error {
+	sk, err := identity.DecodePrivateKey("passphrase todo!")
+	if err != nil {
+		return err
+	}
+	opt.lpOpt = append(opt.lpOpt, libp2p.Identity(sk))
+	opt.ID = peer.ID(identity.ID)
+	return nil
+}
+
+func DefaultOption() Option {
 	// Now, normally you do not just want a simple host, you want
 	// that is fully configured to best support your p2p application.
 	// Let's create a second host setting some more options.
 	// Set your own keypair
+	
 
 	con, err := connmgr.NewConnManager(10, 100)
-	if err != nil {
-		panic(err)
-	}
-
-	sk, err := identity.DecodePrivateKey("passphrase todo!")
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +51,6 @@ func CreateHost(ctx context.Context, identity *entity.Identity) (*rhost.RoutedHo
 		libp2p.DefaultTransports,
 		libp2p.DefaultSecurity,
 		// Use the keypair we generated
-		libp2p.Identity(sk),
 		// Multiple listen addresses
 		libp2p.DefaultListenAddrs,
 		// Let's prevent our peer from having too many
@@ -65,8 +71,14 @@ func CreateHost(ctx context.Context, identity *entity.Identity) (*rhost.RoutedHo
 		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
+	return Option{
+		lpOpt: opt,
+		ID:    "",
+	}
+}
 
-	basicHost, err := libp2p.New(opt...)
+func DefaultRoutedHost(opt Option) (host.Host, error) {
+	basicHost, err := libp2p.New(opt.lpOpt...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +87,7 @@ func CreateHost(ctx context.Context, identity *entity.Identity) (*rhost.RoutedHo
 	dstore := dsync.MutexWrap(ds.NewMapDatastore())
 
 	// Make the DHT
-	kDht := dht.NewDHT(ctx, basicHost, dstore)
+	kDht := dht.NewDHT(context.Background(), basicHost, dstore)
 	bt := []string{
 		"/ip4/34.224.40.105/udp/4001/quic/p2p/12D3KooWEftKAarKSc1bhQfgn5aoW5UnaSqCr9UMhRoqhsBA6MmX",
 		"/ip4/54.235.11.104/udp/4001/quic/p2p/12D3KooWEHmZunko2dupAR9J3Ydo3yN8aW7oZWkAxv5zsNL7UPRH",
@@ -94,13 +106,13 @@ func CreateHost(ctx context.Context, identity *entity.Identity) (*rhost.RoutedHo
 	btconf.MinPeerThreshold = 2
 
 	// connect to the chosen ipfs nodes
-	_, err = bootstrap.Bootstrap(peer.ID(identity.ID), basicHost, kDht, btconf)
+	_, err = bootstrap.Bootstrap(ID, basicHost, kDht, btconf)
 	if err != nil {
 		log.Error("bootstrap failed. ", err)
 		return nil, err
 	}
 	// Make the routed host
-	routedHost := rhost.Wrap(basicHost, kDht)
+	routedHost := rh.Wrap(basicHost, kDht)
 
 	log.Infof("core bootstrapped and ready on:", routedHost.Addrs())
 	return routedHost, nil

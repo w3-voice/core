@@ -13,12 +13,14 @@ import (
 func TestMessenger(t *testing.T) {
 	err := logging.SetLogLevel("PM", "DEBUG")
 	require.NoError(t, err)
-	mr1 := core.MessengerBuilder(t.TempDir() + "/h1")
+	opt1 := core.DefaultOption()
+	opt2 := core.DefaultOption()
+	mr1 := core.MessengerBuilder(t.TempDir()+"/h1", opt1, core.DefaultRoutedHost)
 	_, err = mr1.SignUp("h1")
 	require.NoError(t, err)
 	_, err = mr1.GetIdentity()
 	require.NoError(t, err)
-	mr2 := core.MessengerBuilder(t.TempDir() + "/h2")
+	mr2 := core.MessengerBuilder(t.TempDir()+"/h2", opt2, core.DefaultRoutedHost)
 	_, err = mr2.SignUp("h2")
 	require.NoError(t, err)
 	user2, err := mr2.GetIdentity()
@@ -38,7 +40,6 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 	_, err = peer.Decode(env.To)
 	require.NoError(t, err)
-
 
 	time.Sleep(5 * time.Second)
 

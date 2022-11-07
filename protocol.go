@@ -8,7 +8,7 @@ import (
 
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/utils"
-	host "github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-msgio/protoio"
@@ -41,8 +41,8 @@ func NewPMService(h host.Host, cb func(*pb.Message)) *PMService {
 	return pms
 }
 
-func (pms *PMService) AddPeer(){
-	
+func (pms *PMService) AddPeer() {
+
 }
 
 func (pms *PMService) Send(env *Envelop) {
@@ -63,14 +63,14 @@ func (pms *PMService) Send(env *Envelop) {
 		log.Errorf("can not parse peerID: %s", err)
 		return
 	}
-	adderInfo, err := peer.AddrInfoFromString("/p2p/"+env.To)
+	adderInfo, err := peer.AddrInfoFromString("/p2p/" + env.To)
 	if err != nil {
 		log.Errorf("can not parse adderInfo: %s", err)
 		return
 	}
 	err = pms.Host.Connect(context.Background(), *adderInfo)
 	if err != nil {
-		log.Errorf("can not connect to peer: %s reason: %s",env.To, err)
+		log.Errorf("can not connect to peer: %s reason: %s", env.To, err)
 		return
 	}
 	send(context.Background(), pms.Host, pbmsg, p)
@@ -109,7 +109,6 @@ func (c *PMService) PMHandler(str network.Stream) {
 }
 
 func send(ctx context.Context, h host.Host, msg *pb.Message, to peer.ID) {
-	log.Debugf("host id: %s \n other user %s", h.ID(), to)
 	s, err := h.NewStream(ctx, to, ID)
 	if err != nil {
 		log.Errorf("new stream failed: %s", err)

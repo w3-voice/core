@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"sort"
 	"strings"
 	"time"
@@ -25,9 +24,14 @@ type Messenger struct {
 	store    *store.Store
 	identity entity.Identity
 	pms      PMService
+	hb       HostBuilder
+	opt      Option
 }
 
-func MessengerBuilder(path string) Messenger {
+func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
+	if hb != nil {
+		hb = DefaultRoutedHost
+	}
 
 	err := checkWritable(path)
 	if err != nil {
@@ -42,11 +46,15 @@ func MessengerBuilder(path string) Messenger {
 	if err != nil {
 		return Messenger{
 			store: s,
+			hb:    hb,
+			opt:   opt,
 		}
 	}
 	m := Messenger{
 		store:    s,
 		identity: id,
+		hb:       hb,
+		opt:      opt,
 	}
 
 	m.Start()
@@ -70,7 +78,8 @@ func (m Messenger) getMessageRepo(chatID string) repo.IRepo[entity.Message] {
 }
 
 func (m *Messenger) Start() {
-	h, err := CreateHost(context.Background(), &m.identity)
+	appendIdentity(&m.opt, &m.identity)
+	h, err := m.hb(m.opt)
 	if err != nil {
 		panic(err)
 	}
@@ -144,6 +153,16 @@ func (m *Messenger) CreatePMChat(contactID string) (entity.ChatInfo, error) {
 	return chat, err
 }
 
+func (m *Messenger) GetPMChat(contactID string) (entity.ChatInfo, error) {
+	c, err := m.GetContact(contactID)
+	chatID := m.generatePMChatID(c)
+	if err != nil {
+		return entity.ChatInfo{}, err
+	}
+	chat, err := m.getChatRepo().GetByID(chatID)
+	return chat, err
+}
+
 func (m *Messenger) CreateChat(id string, members []entity.Contact, name string) entity.ChatInfo {
 	return entity.ChatInfo{
 		ID:      id,
@@ -158,7 +177,7 @@ func (c *Messenger) SendMessage(env Envelop) {
 
 func (m *Messenger) MessageHandler(msg *pb.Message) {
 	rCon := m.getContactRepo()
-	con , err := rCon.GetByID(msg.Author.Id)
+	con, err := rCon.GetByID(msg.Author.Id)
 	if err != nil {
 		con = entity.Contact{
 			ID:   msg.Author.Id,
