@@ -18,12 +18,16 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-type HostBuilder func(Option) (host.Host, error)
+type HostBuilder interface {
+	Create(opt Option) (host.Host, error)
+}
+	// func(Option) 
 
 type Option struct {
 	lpOpt []libp2p.Option
 	ID    peer.ID
 }
+
 
 func appendIdentity(opt *Option, identity *entity.Identity) error {
 	sk, err := identity.DecodePrivateKey("passphrase todo!")
@@ -77,7 +81,11 @@ func DefaultOption() Option {
 	}
 }
 
-func DefaultRoutedHost(opt Option) (host.Host, error) {
+type DefaultRoutedHost struct {
+
+}
+
+func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 	basicHost, err := libp2p.New(opt.lpOpt...)
 	if err != nil {
 		return nil, err

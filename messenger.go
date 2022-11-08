@@ -30,7 +30,7 @@ type Messenger struct {
 
 func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
 	if hb != nil {
-		hb = DefaultRoutedHost
+		hb = DefaultRoutedHost{}
 	}
 
 	err := checkWritable(path)
@@ -79,7 +79,7 @@ func (m Messenger) getMessageRepo(chatID string) repo.IRepo[entity.Message] {
 
 func (m *Messenger) Start() {
 	appendIdentity(&m.opt, &m.identity)
-	h, err := m.hb(m.opt)
+	h, err := m.hb.Create(m.opt)
 	if err != nil {
 		panic(err)
 	}
