@@ -24,7 +24,7 @@ type HostBuilder interface {
 	// func(Option) 
 
 type Option struct {
-	lpOpt []libp2p.Option
+	LpOpt []libp2p.Option
 	ID    peer.ID
 }
 
@@ -34,7 +34,7 @@ func (opt *Option)SetIdentity(identity *entity.Identity) error {
 	if err != nil {
 		return err
 	}
-	opt.lpOpt = append(opt.lpOpt, libp2p.Identity(sk))
+	opt.LpOpt = append(opt.LpOpt, libp2p.Identity(sk))
 	opt.ID = peer.ID(identity.ID)
 	return nil
 }
@@ -76,7 +76,7 @@ func DefaultOption() Option {
 		libp2p.EnableHolePunching(),
 	}
 	return Option{
-		lpOpt: opt,
+		LpOpt: opt,
 		ID:    "",
 	}
 }
@@ -86,7 +86,7 @@ type DefaultRoutedHost struct {
 }
 
 func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
-	basicHost, err := libp2p.New(opt.lpOpt...)
+	basicHost, err := libp2p.New(opt.LpOpt...)
 	if err != nil {
 		return nil, err
 	}
