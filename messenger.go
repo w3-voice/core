@@ -78,7 +78,7 @@ func (m Messenger) getMessageRepo(chatID string) repo.IRepo[entity.Message] {
 }
 
 func (m *Messenger) Start() {
-	appendIdentity(&m.opt, &m.identity)
+	m.opt.SetIdentity(&m.identity)
 	h, err := m.hb.Create(m.opt)
 	if err != nil {
 		panic(err)

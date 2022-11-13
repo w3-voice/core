@@ -29,7 +29,7 @@ type Option struct {
 }
 
 
-func appendIdentity(opt *Option, identity *entity.Identity) error {
+func (opt *Option)SetIdentity(identity *entity.Identity) error {
 	sk, err := identity.DecodePrivateKey("passphrase todo!")
 	if err != nil {
 		return err
