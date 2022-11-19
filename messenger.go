@@ -10,6 +10,7 @@ import (
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
+	"github.com/libp2p/go-libp2p-core/host"
 )
 
 type Envelop struct {
@@ -21,6 +22,7 @@ type Envelop struct {
 type Handler func(msg Envelop) error
 
 type Messenger struct {
+	Host     host.Host
 	store    *store.Store
 	identity entity.Identity
 	pms      PMService
@@ -83,6 +85,7 @@ func (m *Messenger) Start() {
 	if err != nil {
 		panic(err)
 	}
+	m.Host = h
 	pms := NewPMService(h, m.MessageHandler)
 	m.pms = *pms
 }
