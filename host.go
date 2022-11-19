@@ -97,8 +97,6 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 	// Make the DHT
 	kDht := dht.NewDHT(context.Background(), basicHost, dstore)
 	bt := []string{
-		"/ip4/34.224.40.105/udp/4001/quic/p2p/12D3KooWEftKAarKSc1bhQfgn5aoW5UnaSqCr9UMhRoqhsBA6MmX",
-		"/ip4/54.235.11.104/udp/4001/quic/p2p/12D3KooWEHmZunko2dupAR9J3Ydo3yN8aW7oZWkAxv5zsNL7UPRH",
 		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
 		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
 		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
