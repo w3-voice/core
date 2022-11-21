@@ -22,6 +22,9 @@ import (
 var BootstrapNodes = []string{
 	"/ip4/45.90.74.114/tcp/4001/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
 	"/ip4/45.90.74.114/udp/4001/quic/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
+	"/ip4/194.5.178.130/tcp/4001/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
+	"/ip4/194.5.178.130/udp/4001/quic/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
+
 }
 
 type HostBuilder interface {
