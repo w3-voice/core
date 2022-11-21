@@ -10,8 +10,11 @@ import (
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
-	"github.com/libp2p/go-libp2p-core/host"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p/core/host"
 )
+
+var log = logging.Logger("msgr-core")
 
 type Envelop struct {
 	Msg    entity.Message
@@ -31,7 +34,7 @@ type Messenger struct {
 }
 
 func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
-	if hb != nil {
+	if hb == nil {
 		hb = DefaultRoutedHost{}
 	}
 

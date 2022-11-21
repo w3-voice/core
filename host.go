@@ -7,29 +7,35 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
 	libp2p "github.com/libp2p/go-libp2p"
-	host "github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	host "github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	rh "github.com/libp2p/go-libp2p/p2p/host/routed"
 
 	"github.com/ipfs/kubo/core/bootstrap"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
+var BootstrapNodes = []string{
+	"/ip4/45.90.74.114/tcp/4001/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
+	"/ip4/45.90.74.114/udp/4001/quic/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
+}
+
 type HostBuilder interface {
 	Create(opt Option) (host.Host, error)
 }
-	// func(Option) 
+
+// func(Option)
 
 type Option struct {
 	LpOpt []libp2p.Option
 	ID    peer.ID
 }
 
-
-func (opt *Option)SetIdentity(identity *entity.Identity) error {
+func (opt *Option) SetIdentity(identity *entity.Identity) error {
 	sk, err := identity.DecodePrivateKey("passphrase todo!")
 	if err != nil {
 		return err
@@ -44,7 +50,6 @@ func DefaultOption() Option {
 	// that is fully configured to best support your p2p application.
 	// Let's create a second host setting some more options.
 	// Set your own keypair
-	
 
 	con, err := connmgr.NewConnManager(10, 100)
 	if err != nil {
@@ -65,7 +70,7 @@ func DefaultOption() Option {
 		// it finds it is behind NAT. Use libp2p.Relay(options...) to
 		// enable active relays and more.
 		// libp2p.EnableAutoRelay(),
-		libp2p.EnableAutoRelay(),
+		libp2p.EnableAutoRelay(autorelay.WithDefaultStaticRelays()),
 		// If you want to help other peers to figure out if they are behind
 		// NATs, you can launch the server-side of AutoNAT too (AutoRelay
 		// already runs the client)
@@ -82,7 +87,6 @@ func DefaultOption() Option {
 }
 
 type DefaultRoutedHost struct {
-
 }
 
 func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
@@ -96,15 +100,8 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 
 	// Make the DHT
 	kDht := dht.NewDHT(context.Background(), basicHost, dstore)
-	bt := []string{
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-		"/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-	}
 
-	bts, err := ParseBootstrapPeers(bt)
+	bts, err := ParseBootstrapPeers(BootstrapNodes)
 	if err != nil {
 		return nil, err
 	}

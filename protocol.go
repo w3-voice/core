@@ -4,17 +4,13 @@ import (
 	"context"
 	"time"
 
-	logging "github.com/ipfs/go-log/v2"
-
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/utils"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-msgio/protoio"
 )
-
-var log = logging.Logger("PM")
 
 const (
 	MessageTimeout = time.Second * 60
@@ -70,7 +66,7 @@ func (pms *PMService) Send(env *Envelop) {
 	}
 	err = pms.Host.Connect(context.Background(), *adderInfo)
 	if err != nil {
-		log.Errorf("can not connect to peer: %s reason: %s", env.To, err)
+		log.Errorf("can not connect to peer: %s reason: %s", env.To, err.Error())
 		return
 	}
 	send(context.Background(), pms.Host, pbmsg, p)

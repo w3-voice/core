@@ -6,12 +6,12 @@ import (
 
 	"github.com/hood-chat/core"
 	logging "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMessenger(t *testing.T) {
-	err := logging.SetLogLevel("PM", "DEBUG")
+	err := logging.SetLogLevel("msgr-core", "DEBUG")
 	require.NoError(t, err)
 	opt1 := core.DefaultOption()
 	opt2 := core.DefaultOption()
