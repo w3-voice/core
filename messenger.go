@@ -185,41 +185,49 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 	rCon := m.getContactRepo()
 	con, err := rCon.GetByID(msg.Author.Id)
 	if err != nil {
+		log.Errorf("fail to get contact %s", err.Error())
 		con = entity.Contact{
 			ID:   msg.Author.Id,
 			Name: msg.Author.Name,
 		}
 		err := rCon.Add(con)
 		if err != nil {
-			panic(err)
+			log.Errorf("fail to add contact %s", err.Error())
+			return
 		}
 	}
 
 	rchat := m.getChatRepo()
 	chat, err := rchat.GetByID(msg.GetChatId())
 	if err != nil {
-		chat = m.CreateChat(msg.GetChatId(), []entity.Contact{*m.identity.Me(), con}, msg.Author.Id)
-		rchat.Add(chat)
+		log.Errorf("can not find chat %s", err.Error())
+		chat = m.CreateChat(msg.GetChatId(), []entity.Contact{*m.identity.Me(), con}, msg.Author.Name)
+		err := rchat.Add(chat)
+		if err != nil {
+			log.Errorf("can not find chat %s", err.Error())
+			return
+		}
 	}
 	newMsg := entity.Message{
 		ID:        msg.Id,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Unix(msg.GetCreatedAt(), 0),
 		Text:      msg.GetText(),
 		Status:    entity.Sent,
 		Author:    con,
 	}
 	rmsg := m.getMessageRepo(chat.ID)
 	err = rmsg.Add(newMsg)
+	log.Debugf("new message %s ", newMsg)
 	if err != nil {
-		panic(err)
+		log.Errorf("Can not add message %s , %d", err.Error(), newMsg)
+		return
 	}
 }
 
 func (m *Messenger) NewMessage(chatID string, content string) (*Envelop, error) {
-
 	msg := entity.Message{
 		ID:        uuid.New().String(),
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		Text:      content,
 		Status:    entity.Pending,
 		Author:    *m.identity.Me(),
@@ -227,19 +235,23 @@ func (m *Messenger) NewMessage(chatID string, content string) (*Envelop, error) 
 	rmsg := m.getMessageRepo(chatID)
 	err := rmsg.Add(msg)
 	if err != nil {
+		log.Errorf("Can not add message %s", err.Error())
 		return nil, err
 	}
-
 	rchat := m.getChatRepo()
 	chat, err := rchat.GetByID(chatID)
+	if err != nil {
+		log.Errorf("Can not get chat %s", err.Error())
+		return nil, err
+	}
 	to := []string{}
 	for _, val := range chat.Members {
 		if val.ID != msg.Author.ID {
 			to = append(to, val.ID)
 		}
 	}
-	m.SendMessage(Envelop{Msg: msg, To: to[0], chatID: chatID})
-	return &Envelop{Msg: msg, To: to[0], chatID: chatID}, err
+	go m.SendMessage(Envelop{Msg: msg, To: to[0], chatID: chatID})
+	return &Envelop{Msg: msg, To: to[0], chatID: chatID}, nil
 }
 
 func (m *Messenger) GetMessages(chatID string) ([]entity.Message, error) {

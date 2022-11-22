@@ -38,7 +38,11 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 	env, err := mr1.NewMessage(chat1.ID, "hello")
 	require.NoError(t, err)
+	env2, err := mr1.NewMessage(chat1.ID, "hello")
+	require.NoError(t, err)
 	_, err = peer.Decode(env.To)
+	require.NoError(t, err)
+	_, err = peer.Decode(env2.To)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)

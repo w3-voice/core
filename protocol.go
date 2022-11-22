@@ -46,7 +46,7 @@ func (pms *PMService) Send(env *Envelop) {
 		Text:      env.Msg.Text,
 		Id:        env.Msg.ID,
 		ChatId:    env.chatID,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: env.Msg.CreatedAt.Unix(),
 		Type:      "text",
 		Sig:       "",
 		Author: &pb.Contact{
@@ -105,7 +105,8 @@ func (c *PMService) PMHandler(str network.Stream) {
 }
 
 func send(ctx context.Context, h host.Host, msg *pb.Message, to peer.ID) {
-	s, err := h.NewStream(ctx, to, ID)
+	nctx := network.WithUseTransient(ctx, "just a chat")
+	s, err := h.NewStream(nctx, to, ID)
 	if err != nil {
 		log.Errorf("new stream failed: %s", err)
 		return
