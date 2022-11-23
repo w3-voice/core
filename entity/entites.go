@@ -12,6 +12,11 @@ import (
 )
 
 type Status int
+type ID string
+
+func (id ID) String() string {
+	return string(id)
+}
 
 const (
 	Pending Status = iota
@@ -20,7 +25,7 @@ const (
 )
 
 type Identity struct {
-	ID      string
+	ID      ID
 	Name    string
 	PrivKey string
 }
@@ -73,14 +78,14 @@ func CreateIdentity(name string) (Identity, error) {
 	if err != nil {
 		return ident, err
 	}
-	ident.ID = id.Pretty()
+	ident.ID = ID(id.String())
 	ident.Name = name
 	fmt.Printf("peer identity: %s\n", ident.ID)
 	return ident, nil
 }
 
 type Message struct {
-	ID        string
+	ID        ID
 	CreatedAt time.Time
 	Text      string
 	Status    Status
@@ -88,12 +93,12 @@ type Message struct {
 }
 
 type Contact struct {
-	ID   string
+	ID   ID
 	Name string
 }
 
 type ChatInfo struct {
-	ID      string
+	ID      ID
 	Name    string
 	Members []Contact
 }

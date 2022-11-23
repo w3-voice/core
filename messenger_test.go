@@ -6,12 +6,11 @@ import (
 
 	"github.com/hood-chat/core"
 	logging "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMessenger(t *testing.T) {
-	err := logging.SetLogLevel("msgr-core", "DEBUG")
+	err := logging.SetLogLevel("*", "DEBUG")
 	require.NoError(t, err)
 	opt1 := core.DefaultOption()
 	opt2 := core.DefaultOption()
@@ -36,16 +35,12 @@ func TestMessenger(t *testing.T) {
 
 	chat1, err := mr1.CreatePMChat(user2.ID)
 	require.NoError(t, err)
-	env, err := mr1.NewMessage(chat1.ID, "hello")
+	_, err = mr1.SendPM(chat1.ID, "hello")
 	require.NoError(t, err)
-	env2, err := mr1.NewMessage(chat1.ID, "hello")
-	require.NoError(t, err)
-	_, err = peer.Decode(env.To)
-	require.NoError(t, err)
-	_, err = peer.Decode(env2.To)
+	_, err = mr1.SendPM(chat1.ID, "hello")
 	require.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	chat2, err := mr2.GetChat(chat1.ID)
 	require.NoError(t, err)

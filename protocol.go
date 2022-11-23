@@ -4,12 +4,16 @@ import (
 	"context"
 	"time"
 
+	"github.com/hood-chat/core/entity"
+	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/utils"
+	lpevent "github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-msgio/protoio"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 )
 
 const (
@@ -27,11 +31,16 @@ const (
 
 type PMService struct {
 	Host host.Host
-	cb   func(*pb.Message)
+	em lpevent.Emitter
 }
 
-func NewPMService(h host.Host, cb func(*pb.Message)) *PMService {
-	pms := &PMService{h, cb}
+func NewPMService(h host.Host) *PMService {
+	em, err := h.EventBus().Emitter(new(event.EvtMessageReceived),eventbus.Stateful)
+	if err != nil {
+		log.Errorf("error reading message: %s", err.Error())
+		panic("failed to create message service")
+	}
+	pms := &PMService{h, em}
 	h.SetStreamHandler(ID, pms.PMHandler)
 	log.Debug("service PMS created")
 	return pms
@@ -41,32 +50,20 @@ func (pms *PMService) AddPeer() {
 
 }
 
-func (pms *PMService) Send(env *Envelop) {
-	pbmsg := &pb.Message{
-		Text:      env.Msg.Text,
-		Id:        env.Msg.ID,
-		ChatId:    env.chatID,
-		CreatedAt: env.Msg.CreatedAt.Unix(),
-		Type:      "text",
-		Sig:       "",
-		Author: &pb.Contact{
-			Id:   env.Msg.Author.ID,
-			Name: env.Msg.Author.Name,
-		},
-	}
-	p, err := peer.Decode(env.To)
+func (pms *PMService) Send(pbmsg *pb.Message, to entity.ID) {
+	p, err := peer.Decode(to.String())
 	if err != nil {
 		log.Errorf("can not parse peerID: %s", err)
 		return
 	}
-	adderInfo, err := peer.AddrInfoFromString("/p2p/" + env.To)
+	adderInfo, err := peer.AddrInfoFromString("/p2p/" + to.String())
 	if err != nil {
 		log.Errorf("can not parse adderInfo: %s", err)
 		return
 	}
 	err = pms.Host.Connect(context.Background(), *adderInfo)
 	if err != nil {
-		log.Errorf("can not connect to peer: %s reason: %s", env.To, err.Error())
+		log.Errorf("can not connect to peer: %s reason: %s", to.String(), err.Error())
 		return
 	}
 	send(context.Background(), pms.Host, pbmsg, p)
@@ -95,13 +92,18 @@ func (c *PMService) PMHandler(str network.Stream) {
 
 	err := rd.ReadMsg(&msg)
 	if err != nil {
-		log.Debugf("error reading message: %s", err)
+		log.Errorf("error reading message: %s", err.Error())
 		str.Reset()
+		return
 	}
 	log.Debugf("message received ... %s", msg.GetText())
-	c.cb(&msg)
-	defer rd.Close()
-
+	err = c.em.Emit(event.EvtMessageReceived{Msg: &msg})
+	if err != nil {
+		log.Errorf("failed to emit event: %s", err.Error())
+		str.Reset()
+		return
+	}
+	// defer emmiter.Close()
 }
 
 func send(ctx context.Context, h host.Host, msg *pb.Message, to peer.ID) {

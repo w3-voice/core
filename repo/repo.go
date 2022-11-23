@@ -12,7 +12,7 @@ var ErrNotSupported = errors.New("not supported")
 
 type IRepo[C any] interface {
 	Get() (C, error)
-	GetByID(id string) (C, error)
+	GetByID(id entity.ID) (C, error)
 	GetAll() ([]C, error)
 	Set(C) error
 	Add(C) error
@@ -39,12 +39,12 @@ func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
 		m, _ := c.store.ContactByIDs(val.Members)
 		for _, me := range m {
 			members = append(members, entity.Contact{
-				ID:   me.ID,
+				ID:   entity.ID(me.ID),
 				Name: me.Name,
 			})
 		}
 		ci = append(ci, entity.ChatInfo{
-			ID:      val.ID,
+			ID:      entity.ID(val.ID),
 			Name:    val.Name,
 			Members: members,
 		})
@@ -52,8 +52,8 @@ func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
 	return ci, nil
 }
 
-func (c ChatRepo) GetByID(id string) (entity.ChatInfo, error) {
-	ct, err := c.store.ChatByID(id)
+func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
+	ct, err := c.store.ChatByID(string(id))
 	if err != nil {
 		return entity.ChatInfo{}, err
 	}
@@ -61,12 +61,12 @@ func (c ChatRepo) GetByID(id string) (entity.ChatInfo, error) {
 	m, _ := c.store.ContactByIDs(ct.Members)
 	for _, me := range m {
 		members = append(members, entity.Contact{
-			ID:   me.ID,
+			ID:   entity.ID(me.ID),
 			Name: me.Name,
 		})
 	}
 	return entity.ChatInfo{
-		ID:      ct.ID,
+		ID:      entity.ID(ct.ID),
 		Name:    ct.Name,
 		Members: members,
 	}, nil
@@ -75,10 +75,10 @@ func (c ChatRepo) GetByID(id string) (entity.ChatInfo, error) {
 func (c ChatRepo) Add(chat entity.ChatInfo) error {
 	m := []string{}
 	for _, val := range chat.Members {
-		m = append(m, val.ID)
+		m = append(m, string(val.ID))
 	}
 	ci := store.BHChat{
-		ID:      chat.ID,
+		ID:      string(chat.ID),
 		Name:    chat.Name,
 		Members: m,
 	}
@@ -99,10 +99,10 @@ func (c ChatRepo) Get() (entity.ChatInfo, error) {
 
 type MessageRepo struct {
 	store  store.Store
-	chatID string
+	chatID entity.ID
 }
 
-func NewMessageRepo(store *store.Store, chatID string) IRepo[entity.Message] {
+func NewMessageRepo(store *store.Store, chatID entity.ID) IRepo[entity.Message] {
 	return MessageRepo{
 		store:  *store,
 		chatID: chatID,
@@ -111,12 +111,12 @@ func NewMessageRepo(store *store.Store, chatID string) IRepo[entity.Message] {
 
 func (m MessageRepo) Add(msg entity.Message) error {
 	tmsg := store.BHTextMessage{
-		ID:        msg.ID,
-		ChatID:    m.chatID,
+		ID:        string(msg.ID),
+		ChatID:    string(m.chatID),
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
 		Status:    store.Status(msg.Status),
-		Author:    store.BHContact(msg.Author),
+		Author:    store.BHContact{Name:msg.Author.Name,ID: string(msg.Author.ID)},
 	}
 	err := m.store.InsertTextMessage(tmsg)
 	if err != nil {
@@ -127,23 +127,23 @@ func (m MessageRepo) Add(msg entity.Message) error {
 func (m MessageRepo) Set(msg entity.Message) error {
 	return ErrNotImplemented
 }
-func (m MessageRepo) GetByID(id string) (entity.Message, error) {
+func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
 	return entity.Message{}, ErrNotImplemented
 }
 func (m MessageRepo) GetAll() ([]entity.Message, error) {
 	messages := make([]entity.Message, 0)
-	bhm, err := m.store.ChatMessages(m.chatID)
+	bhm, err := m.store.ChatMessages(string(m.chatID))
 	if err != nil {
 		return nil, err
 	}
 	for _, m := range bhm {
 		messages = append(messages, entity.Message{
-			ID:        m.ID,
+			ID:        entity.ID(m.ID),
 			CreatedAt: m.CreatedAt,
 			Text:      m.Text,
 			Status:    entity.Status(m.Status),
 			Author: entity.Contact{
-				ID:   m.Author.ID,
+				ID:   entity.ID(m.Author.ID),
 				Name: m.Author.Name,
 			},
 		})
@@ -168,7 +168,7 @@ func NewContactRepo(store *store.Store) IRepo[entity.Contact] {
 func (c ContactRepo) Add(con entity.Contact) error {
 	err := c.store.InsertContact(store.BHContact{
 		Name: con.Name,
-		ID:   con.ID,
+		ID:   string(con.ID),
 	})
 	if err != nil {
 		return err
@@ -178,13 +178,13 @@ func (c ContactRepo) Add(con entity.Contact) error {
 func (c ContactRepo) Set(cont entity.Contact) error {
 	return ErrNotImplemented
 }
-func (c ContactRepo) GetByID(id string) (entity.Contact, error) {
-	con, err := c.store.ContactByID(id)
+func (c ContactRepo) GetByID(id entity.ID) (entity.Contact, error) {
+	con, err := c.store.ContactByID(string(id))
 	if err != nil {
 		return entity.Contact{}, err
 	}
 	return entity.Contact{
-		ID:   con.ID,
+		ID:   entity.ID(con.ID),
 		Name: con.Name,
 	}, nil
 }
@@ -197,7 +197,7 @@ func (c ContactRepo) GetAll() ([]entity.Contact, error) {
 	for _, val := range bhcl {
 		cons = append(cons, entity.Contact{
 			Name: val.Name,
-			ID:   val.ID,
+			ID:   entity.ID(val.ID),
 		})
 	}
 	return cons, nil
@@ -222,7 +222,7 @@ func (i IdentityRepo) Add(con entity.Identity) error {
 }
 func (i IdentityRepo) Set(iden entity.Identity) error {
 	err := i.store.SetIdentity(store.BHIdentity{
-		ID:   iden.ID,
+		ID:   string(iden.ID),
 		Name: iden.Name,
 		Key:  iden.PrivKey,
 	})
@@ -231,7 +231,7 @@ func (i IdentityRepo) Set(iden entity.Identity) error {
 	}
 	return nil
 }
-func (i IdentityRepo) GetByID(id string) (entity.Identity, error) {
+func (i IdentityRepo) GetByID(id entity.ID) (entity.Identity, error) {
 	return entity.Identity{}, ErrNotImplemented
 }
 func (i IdentityRepo) GetAll() ([]entity.Identity, error) {
@@ -240,7 +240,7 @@ func (i IdentityRepo) GetAll() ([]entity.Identity, error) {
 		return nil, err
 	}
 	return []entity.Identity{{
-		ID:      id.ID,
+		ID:      entity.ID(id.ID),
 		Name:    id.Name,
 		PrivKey: id.Key,
 	}}, nil
@@ -252,7 +252,7 @@ func (i IdentityRepo) Get() (entity.Identity, error) {
 		return entity.Identity{}, err
 	}
 	return entity.Identity{
-		ID:      id.ID,
+		ID:      entity.ID(id.ID),
 		Name:    id.Name,
 		PrivKey: id.Key,
 	}, nil

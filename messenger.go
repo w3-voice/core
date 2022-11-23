@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hood-chat/core/entity"
+	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
@@ -15,14 +16,6 @@ import (
 )
 
 var log = logging.Logger("msgr-core")
-
-type Envelop struct {
-	Msg    entity.Message
-	chatID string
-	To     string
-}
-
-type Handler func(msg Envelop) error
 
 type Messenger struct {
 	Host     host.Host
@@ -78,7 +71,7 @@ func (m Messenger) getChatRepo() repo.IRepo[entity.ChatInfo] {
 	return repo.NewChatRepo(m.store)
 }
 
-func (m Messenger) getMessageRepo(chatID string) repo.IRepo[entity.Message] {
+func (m Messenger) getMessageRepo(chatID entity.ID) repo.IRepo[entity.Message] {
 	return repo.NewMessageRepo(m.store, chatID)
 }
 
@@ -89,8 +82,22 @@ func (m *Messenger) Start() {
 		panic(err)
 	}
 	m.Host = h
-	pms := NewPMService(h, m.MessageHandler)
+	pms := NewPMService(h)
 	m.pms = *pms
+	sub, err := h.EventBus().Subscribe(new(event.EvtMessageReceived))
+	if err != nil {
+		panic(err)
+	}
+	go func() {
+		defer sub.Close()
+		for e := range sub.Out() {
+			log.Debug("EvtMessageReceived received")
+			msg := e.(event.EvtMessageReceived).Msg
+			log.Debugf("EvtMessageReceived received %s", msg)
+			m.MessageHandler(msg)
+		}
+	}()
+
 }
 
 func (m *Messenger) IsLogin() bool {
@@ -123,7 +130,7 @@ func (m *Messenger) GetContacts() ([]entity.Contact, error) {
 	return rContact.GetAll()
 }
 
-func (m *Messenger) GetContact(id string) (entity.Contact, error) {
+func (m *Messenger) GetContact(id entity.ID) (entity.Contact, error) {
 	rContact := m.getContactRepo()
 	return rContact.GetByID(id)
 }
@@ -133,7 +140,7 @@ func (m *Messenger) AddContact(c entity.Contact) error {
 	return rContact.Add(c)
 }
 
-func (m *Messenger) GetChat(id string) (entity.ChatInfo, error) {
+func (m *Messenger) GetChat(id entity.ID) (entity.ChatInfo, error) {
 	rChat := m.getChatRepo()
 	ci := entity.ChatInfo{}
 	c, err := rChat.GetByID(id)
@@ -148,7 +155,7 @@ func (m *Messenger) GetChats() ([]entity.ChatInfo, error) {
 	return rChat.GetAll()
 }
 
-func (m *Messenger) CreatePMChat(contactID string) (entity.ChatInfo, error) {
+func (m *Messenger) CreatePMChat(contactID entity.ID) (entity.ChatInfo, error) {
 	c, err := m.GetContact(contactID)
 	chatID := m.generatePMChatID(c)
 	if err != nil {
@@ -159,7 +166,7 @@ func (m *Messenger) CreatePMChat(contactID string) (entity.ChatInfo, error) {
 	return chat, err
 }
 
-func (m *Messenger) GetPMChat(contactID string) (entity.ChatInfo, error) {
+func (m *Messenger) GetPMChat(contactID entity.ID) (entity.ChatInfo, error) {
 	c, err := m.GetContact(contactID)
 	chatID := m.generatePMChatID(c)
 	if err != nil {
@@ -169,25 +176,24 @@ func (m *Messenger) GetPMChat(contactID string) (entity.ChatInfo, error) {
 	return chat, err
 }
 
-func (m *Messenger) CreateChat(id string, members []entity.Contact, name string) entity.ChatInfo {
+func (m *Messenger) CreateChat(id entity.ID, members []entity.Contact, name string) entity.ChatInfo {
 	return entity.ChatInfo{
-		ID:      id,
+		ID:      entity.ID(id),
 		Name:    name,
 		Members: members,
 	}
 }
 
-func (c *Messenger) SendMessage(env Envelop) {
-	c.pms.Send(&env)
-}
-
 func (m *Messenger) MessageHandler(msg *pb.Message) {
+	mAuthorID := entity.ID(msg.Author.Id)
+	msgID := entity.ID(msg.GetId())
+	chatID := entity.ID(msg.ChatId)
 	rCon := m.getContactRepo()
-	con, err := rCon.GetByID(msg.Author.Id)
+	con, err := rCon.GetByID(mAuthorID)
 	if err != nil {
 		log.Errorf("fail to get contact %s", err.Error())
 		con = entity.Contact{
-			ID:   msg.Author.Id,
+			ID:   mAuthorID,
 			Name: msg.Author.Name,
 		}
 		err := rCon.Add(con)
@@ -198,10 +204,10 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 	}
 
 	rchat := m.getChatRepo()
-	chat, err := rchat.GetByID(msg.GetChatId())
+	chat, err := rchat.GetByID(entity.ID(msg.GetChatId()))
 	if err != nil {
 		log.Errorf("can not find chat %s", err.Error())
-		chat = m.CreateChat(msg.GetChatId(), []entity.Contact{*m.identity.Me(), con}, msg.Author.Name)
+		chat = m.CreateChat(chatID, []entity.Contact{*m.identity.Me(), con}, msg.Author.Name)
 		err := rchat.Add(chat)
 		if err != nil {
 			log.Errorf("can not find chat %s", err.Error())
@@ -209,7 +215,7 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 		}
 	}
 	newMsg := entity.Message{
-		ID:        msg.Id,
+		ID:        msgID,
 		CreatedAt: time.Unix(msg.GetCreatedAt(), 0),
 		Text:      msg.GetText(),
 		Status:    entity.Sent,
@@ -224,9 +230,9 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 	}
 }
 
-func (m *Messenger) NewMessage(chatID string, content string) (*Envelop, error) {
+func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, error) {
 	msg := entity.Message{
-		ID:        uuid.New().String(),
+		ID:        entity.ID(uuid.New().String()),
 		CreatedAt: time.Now().UTC(),
 		Text:      content,
 		Status:    entity.Pending,
@@ -244,22 +250,34 @@ func (m *Messenger) NewMessage(chatID string, content string) (*Envelop, error) 
 		log.Errorf("Can not get chat %s", err.Error())
 		return nil, err
 	}
-	to := []string{}
+	to := []entity.ID{}
 	for _, val := range chat.Members {
 		if val.ID != msg.Author.ID {
 			to = append(to, val.ID)
 		}
 	}
-	go m.SendMessage(Envelop{Msg: msg, To: to[0], chatID: chatID})
-	return &Envelop{Msg: msg, To: to[0], chatID: chatID}, nil
+	pbmsg := &pb.Message{
+		Text:      msg.Text,
+		Id:        msg.ID.String(),
+		ChatId:    chatID.String(),
+		CreatedAt: msg.CreatedAt.Unix(),
+		Type:      "text",
+		Sig:       "",
+		Author: &pb.Contact{
+			Id:   msg.Author.ID.String(),
+			Name: msg.Author.Name,
+		},
+	}
+	go m.pms.Send(pbmsg, to[0])
+	return &msg, nil
 }
 
-func (m *Messenger) GetMessages(chatID string) ([]entity.Message, error) {
+func (m *Messenger) GetMessages(chatID entity.ID) ([]entity.Message, error) {
 	return m.getMessageRepo(chatID).GetAll()
 }
 
-func (m *Messenger) generatePMChatID(con entity.Contact) string {
-	cons := []string{con.ID, m.identity.Me().ID}
+func (m *Messenger) generatePMChatID(con entity.Contact) entity.ID {
+	cons := []string{con.ID.String(), m.identity.Me().ID.String()}
 	sort.Strings(cons)
-	return strings.Join(cons, "")
+	return entity.ID(strings.Join(cons, ""))
 }
