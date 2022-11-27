@@ -13,10 +13,12 @@ var ErrNotSupported = errors.New("not supported")
 type IRepo[C any] interface {
 	Get() (C, error)
 	GetByID(id entity.ID) (C, error)
-	GetAll() ([]C, error)
+	GetAll(filter Filter) ([]C, error)
 	Set(C) error
 	Add(C) error
 }
+
+type Filter map[string]string
 
 func NewChatRepo(store *store.Store) IRepo[entity.ChatInfo] {
 	return ChatRepo{
@@ -28,7 +30,7 @@ type ChatRepo struct {
 	store *store.Store
 }
 
-func (c ChatRepo) GetAll() ([]entity.ChatInfo, error) {
+func (c ChatRepo) GetAll(_ Filter) ([]entity.ChatInfo, error) {
 	chl, err := c.store.ChatList()
 	if err != nil {
 		return nil, err
@@ -99,20 +101,18 @@ func (c ChatRepo) Get() (entity.ChatInfo, error) {
 
 type MessageRepo struct {
 	store  store.Store
-	chatID entity.ID
 }
 
-func NewMessageRepo(store *store.Store, chatID entity.ID) IRepo[entity.Message] {
+func NewMessageRepo(store *store.Store) IRepo[entity.Message] {
 	return MessageRepo{
 		store:  *store,
-		chatID: chatID,
 	}
 }
 
 func (m MessageRepo) Add(msg entity.Message) error {
 	tmsg := store.BHTextMessage{
 		ID:        string(msg.ID),
-		ChatID:    string(m.chatID),
+		ChatID:    string(msg.ChatID),
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
 		Status:    store.Status(msg.Status),
@@ -125,20 +125,48 @@ func (m MessageRepo) Add(msg entity.Message) error {
 	return nil
 }
 func (m MessageRepo) Set(msg entity.Message) error {
-	return ErrNotImplemented
+	tmsg := store.BHTextMessage {
+		ID:        string(msg.ID),
+		ChatID:    string(msg.ID),
+		CreatedAt: msg.CreatedAt,
+		Text:      msg.Text,
+		Status:    store.Status(msg.Status),
+		Author:    store.BHContact{Name:msg.Author.Name,ID: string(msg.Author.ID)},
+	}
+	return m.store.UpdateMessage(tmsg)
 }
 func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
-	return entity.Message{}, ErrNotImplemented
+	bhmsg, err := m.store.MsgByID(id.String())
+	if err != nil {
+		return entity.Message{}, err
+	}
+	msg := entity.Message {
+		ID: entity.ID(bhmsg.ID),
+		ChatID: entity.ID(bhmsg.ChatID),
+		CreatedAt: bhmsg.CreatedAt,
+		Text:      bhmsg.Text,
+		Status:    entity.Status(bhmsg.Status),
+		Author: entity.Contact{
+			ID:   entity.ID(bhmsg.Author.ID),
+			Name: bhmsg.Author.Name,
+		},
+	}
+	return msg, nil
 }
-func (m MessageRepo) GetAll() ([]entity.Message, error) {
+func (m MessageRepo) GetAll(f Filter) ([]entity.Message, error) {
 	messages := make([]entity.Message, 0)
-	bhm, err := m.store.ChatMessages(string(m.chatID))
+	chID, pres := f["chatID"]
+	if !pres {
+		return nil, ErrNotSupported
+	}
+	bhm, err := m.store.ChatMessages(string(chID))
 	if err != nil {
 		return nil, err
 	}
 	for _, m := range bhm {
 		messages = append(messages, entity.Message{
 			ID:        entity.ID(m.ID),
+			ChatID:    entity.ID(m.ChatID),
 			CreatedAt: m.CreatedAt,
 			Text:      m.Text,
 			Status:    entity.Status(m.Status),
@@ -188,7 +216,7 @@ func (c ContactRepo) GetByID(id entity.ID) (entity.Contact, error) {
 		Name: con.Name,
 	}, nil
 }
-func (c ContactRepo) GetAll() ([]entity.Contact, error) {
+func (c ContactRepo) GetAll(_ Filter) ([]entity.Contact, error) {
 	cons := make([]entity.Contact, 0)
 	bhcl, err := c.store.AllContacts()
 	if err != nil {
@@ -234,7 +262,7 @@ func (i IdentityRepo) Set(iden entity.Identity) error {
 func (i IdentityRepo) GetByID(id entity.ID) (entity.Identity, error) {
 	return entity.Identity{}, ErrNotImplemented
 }
-func (i IdentityRepo) GetAll() ([]entity.Identity, error) {
+func (i IdentityRepo) GetAll(_ Filter) ([]entity.Identity, error) {
 	id, err := i.store.GetIdentity()
 	if err != nil {
 		return nil, err

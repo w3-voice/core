@@ -38,7 +38,7 @@ func TestContact(t *testing.T) {
 		err := rc.Add(val)
 		require.NoError(t, err)
 	}
-	res2, err := rc.GetAll()
+	res2, err := rc.GetAll(nil)
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res2, test_contact) {
 		t.Error("in and out are not equal")
@@ -103,6 +103,7 @@ func TestChat(t *testing.T) {
 
 	chat0 := []entity.Message{
 		{
+			ChatID: chatinfo0.ID,
 			ID: "1",
 			Author: entity.Contact{
 				ID:   "1",
@@ -114,6 +115,7 @@ func TestChat(t *testing.T) {
 		},
 		{
 			ID: "2",
+			ChatID: chatinfo0.ID,
 			Author: entity.Contact{
 				ID:   "2",
 				Name: "red",
@@ -127,6 +129,7 @@ func TestChat(t *testing.T) {
 	chat1 := []entity.Message{
 		{
 			ID: "3",
+			ChatID: chatinfo1.ID,
 			Author: entity.Contact{
 				ID:   "3",
 				Name: "blue",
@@ -137,6 +140,7 @@ func TestChat(t *testing.T) {
 		},
 		{
 			ID: "4",
+			ChatID: chatinfo1.ID,
 			Author: entity.Contact{
 				ID:   "1",
 				Name: "blue",
@@ -149,18 +153,18 @@ func TestChat(t *testing.T) {
 
 	err = chrepo.Add(chatinfo0)
 	require.NoError(t, err)
-	rmsg := repo.NewMessageRepo(s, chatinfo0.ID)
+	rmsg := repo.NewMessageRepo(s)
 	rmsg.Add(chat0[0])
 	rmsg.Add(chat0[1])
 
 	err = chrepo.Add(chatinfo1)
 	require.NoError(t, err)
 
-	rmsg = repo.NewMessageRepo(s, chatinfo1.ID)
+	rmsg = repo.NewMessageRepo(s)
 	rmsg.Add(chat1[0])
 	rmsg.Add(chat1[1])
 
-	res, err := chrepo.GetAll()
+	res, err := chrepo.GetAll(nil)
 	require.NoError(t, err)
 
 	if !reflect.DeepEqual(res, []entity.ChatInfo{chatinfo0, chatinfo1}) {
@@ -174,6 +178,11 @@ func TestChat(t *testing.T) {
 	if !reflect.DeepEqual(res2, chatinfo0) {
 		t.Error("in and out are not equal")
 	}
+	filter := make(repo.Filter, 0)
+	filter["chatID"] = string(res2.ID)
+	res_msg, err := rmsg.GetAll(filter)
+	require.NoError(t, err)
+	require.Equal(t, len(res_msg), len(chat1))
 	t.Logf("result %v", res2)
 	t.Logf("expected %v", chatinfo0)
 }

@@ -1,12 +1,14 @@
 package store
 
 import (
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/timshannon/badgerhold/v4"
+
+	logging "github.com/ipfs/go-log/v2"
 )
+
+var log = logging.Logger("msgr-core-store")
 
 type Status int
 
@@ -17,24 +19,24 @@ const (
 )
 
 type BHIdentity struct {
-	ID   string
+	ID   string `badgerhold:"unique"`
 	Name string
 	Key  string
 }
 
 type BHContact struct {
-	ID   string
+	ID   string `badgerhold:"unique"`
 	Name string
 }
 
 type BHChat struct {
 	Name    string
-	ID      string
+	ID      string `badgerhold:"unique"`
 	Members []string
 }
 
 type BHTextMessage struct {
-	ID        string
+	ID        string `badgerhold:"unique"`
 	ChatID    string `badgerhold:"index"`
 	CreatedAt time.Time
 	Text      string
@@ -91,6 +93,29 @@ func (s *Store) ChatMessages(id string) ([]BHTextMessage, error) {
 	return res, err
 }
 
+func (s *Store) MsgByID(id string) (BHTextMessage, error) {
+	var res BHTextMessage
+	q := badgerhold.Where("ID").Eq(id)
+	err := s.bh.FindOne(&res, q)
+	return res, err
+}
+
+func (s *Store) UpdateMessage(msg BHTextMessage) error {
+	return s.bh.UpdateMatching(new(BHTextMessage), badgerhold.Where("ID").Eq(msg.ID),func(record interface{}) error {
+		update, ok := record.(*BHTextMessage)
+		if !ok {
+			return badgerhold.ErrNotFound
+		}
+		update.Author = msg.Author
+		update.ChatID = msg.ChatID
+		update.ID = msg.ID
+		update.CreatedAt = msg.CreatedAt
+		update.Status = msg.Status
+		update.Text = msg.Text
+		return nil
+	})
+}
+
 func (s *Store) AllContacts() ([]BHContact, error) {
 	var res []BHContact
 	q := &badgerhold.Query{}
@@ -127,7 +152,6 @@ func (s *Store) GetIdentity() (BHIdentity, error) {
 	q := &badgerhold.Query{}
 	err := s.bh.FindOne(&res, q)
 	if err != nil {
-		fmt.Printf("we are fucked")
 		return BHIdentity{}, err
 	}
 	return res, err
