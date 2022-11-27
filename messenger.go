@@ -12,7 +12,9 @@ import (
 	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
 	logging "github.com/ipfs/go-log/v2"
+	lpevt "github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 )
 
 var log = logging.Logger("msgr-core")
@@ -24,11 +26,17 @@ type Messenger struct {
 	pms      PMService
 	hb       HostBuilder
 	opt      Option
+	bus      lpevt.Bus
 }
 
 func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
 	if hb == nil {
 		hb = DefaultRoutedHost{}
+	}
+	msgr := Messenger{
+		bus: eventbus.NewBus(),
+		hb:  hb,
+		opt: opt,
 	}
 
 	err := checkWritable(path)
@@ -39,24 +47,16 @@ func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
 	if err != nil {
 		panic(err)
 	}
+	msgr.store = s
 	rIdentity := repo.NewIdentityRepo(s)
 	id, err := rIdentity.Get()
 	if err != nil {
-		return Messenger{
-			store: s,
-			hb:    hb,
-			opt:   opt,
-		}
+		return msgr
 	}
-	m := Messenger{
-		store:    s,
-		identity: id,
-		hb:       hb,
-		opt:      opt,
-	}
+	msgr.identity = id
 
-	m.Start()
-	return m
+	msgr.Start()
+	return msgr
 }
 
 func (m Messenger) getContactRepo() repo.IRepo[entity.Contact] {
@@ -71,8 +71,8 @@ func (m Messenger) getChatRepo() repo.IRepo[entity.ChatInfo] {
 	return repo.NewChatRepo(m.store)
 }
 
-func (m Messenger) getMessageRepo(chatID entity.ID) repo.IRepo[entity.Message] {
-	return repo.NewMessageRepo(m.store, chatID)
+func (m Messenger) getMessageRepo() repo.IRepo[entity.Message] {
+	return repo.NewMessageRepo(m.store)
 }
 
 func (m *Messenger) Start() {
@@ -82,9 +82,10 @@ func (m *Messenger) Start() {
 		panic(err)
 	}
 	m.Host = h
-	pms := NewPMService(h)
+	pms := NewPMService(h, m.bus)
 	m.pms = *pms
-	sub, err := h.EventBus().Subscribe(new(event.EvtMessageReceived))
+
+	sub, err := m.bus.Subscribe(new(event.EvtMessageReceived))
 	if err != nil {
 		panic(err)
 	}
@@ -97,7 +98,26 @@ func (m *Messenger) Start() {
 			m.MessageHandler(msg)
 		}
 	}()
+	subStaus, err := m.bus.Subscribe(new(event.EvtObject))
+	if err != nil {
+		panic(err)
+	}
+	go func() {
+		defer subStaus.Close()
+		for e := range subStaus.Out() {
+			log.Debug("EvtObject received")
+			evt := e.(event.EvtObject)
+			meg := event.NewMessagingEventGroup()
+			if meg.Validate(&evt) {
+				evt, _ := meg.Parse(&evt)
+				log.Debugf("MessagingEvent received %s", evt)
+				if *evt.Action() == entity.Sent {
+					m.updateMessageStatus(*evt.Payload(), *evt.Action())
+				}
+			}
 
+		}
+	}()
 }
 
 func (m *Messenger) IsLogin() bool {
@@ -127,7 +147,7 @@ func (m *Messenger) GetIdentity() (entity.Identity, error) {
 
 func (m *Messenger) GetContacts() ([]entity.Contact, error) {
 	rContact := m.getContactRepo()
-	return rContact.GetAll()
+	return rContact.GetAll(nil)
 }
 
 func (m *Messenger) GetContact(id entity.ID) (entity.Contact, error) {
@@ -152,7 +172,7 @@ func (m *Messenger) GetChat(id entity.ID) (entity.ChatInfo, error) {
 
 func (m *Messenger) GetChats() ([]entity.ChatInfo, error) {
 	rChat := repo.NewChatRepo(m.store)
-	return rChat.GetAll()
+	return rChat.GetAll(nil)
 }
 
 func (m *Messenger) CreatePMChat(contactID entity.ID) (entity.ChatInfo, error) {
@@ -205,40 +225,49 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 
 	rchat := m.getChatRepo()
 	chat, err := rchat.GetByID(entity.ID(msg.GetChatId()))
+
 	if err != nil {
 		log.Errorf("can not find chat %s", err.Error())
 		chat = m.CreateChat(chatID, []entity.Contact{*m.identity.Me(), con}, msg.Author.Name)
 		err := rchat.Add(chat)
 		if err != nil {
-			log.Errorf("can not find chat %s", err.Error())
+			log.Errorf("fail to handle new message %s", err.Error())
 			return
 		}
 	}
 	newMsg := entity.Message{
 		ID:        msgID,
+		ChatID:    chat.ID,
 		CreatedAt: time.Unix(msg.GetCreatedAt(), 0),
 		Text:      msg.GetText(),
 		Status:    entity.Sent,
 		Author:    con,
 	}
-	rmsg := m.getMessageRepo(chat.ID)
+	rmsg := m.getMessageRepo()
 	err = rmsg.Add(newMsg)
 	log.Debugf("new message %s ", newMsg)
 	if err != nil {
 		log.Errorf("Can not add message %s , %d", err.Error(), newMsg)
 		return
 	}
+
+	em, _ := m.bus.Emitter(new(event.EvtObject))
+	defer em.Close()
+	evgrp := event.NewMessagingEventGroup()
+	ev, _ := evgrp.Make("ChangeMessageStatus", entity.Received, msgID)
+	em.Emit(*ev)
 }
 
 func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, error) {
 	msg := entity.Message{
 		ID:        entity.ID(uuid.New().String()),
+		ChatID:    chatID,
 		CreatedAt: time.Now().UTC(),
 		Text:      content,
 		Status:    entity.Pending,
 		Author:    *m.identity.Me(),
 	}
-	rmsg := m.getMessageRepo(chatID)
+	rmsg := m.getMessageRepo()
 	err := rmsg.Add(msg)
 	if err != nil {
 		log.Errorf("Can not add message %s", err.Error())
@@ -273,11 +302,31 @@ func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, e
 }
 
 func (m *Messenger) GetMessages(chatID entity.ID) ([]entity.Message, error) {
-	return m.getMessageRepo(chatID).GetAll()
+	filter := make(repo.Filter, 0)
+	filter["chatID"] = string(chatID)
+	return m.getMessageRepo().GetAll(filter)
 }
 
 func (m *Messenger) generatePMChatID(con entity.Contact) entity.ID {
 	cons := []string{con.ID.String(), m.identity.Me().ID.String()}
 	sort.Strings(cons)
 	return entity.ID(strings.Join(cons, ""))
+}
+
+func (m *Messenger) updateMessageStatus(msgID entity.ID, status entity.Status) error {
+	rmsg := m.getMessageRepo()
+	msg, err := rmsg.GetByID(msgID)
+	if err != nil {
+		return err
+	}
+	msg.Status = status
+	err = rmsg.Set(msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Messenger) EventBus() lpevt.Bus {
+	return m.bus
 }
