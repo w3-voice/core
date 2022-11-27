@@ -12,8 +12,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-msgio/protoio"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
+	"github.com/libp2p/go-msgio/protoio"
 )
 
 const (
@@ -30,17 +30,23 @@ const (
 )
 
 type PMService struct {
-	Host host.Host
-	em lpevent.Emitter
+	Host     host.Host
+	emMsg    lpevent.Emitter
+	emStatus lpevent.Emitter
 }
 
-func NewPMService(h host.Host) *PMService {
-	em, err := h.EventBus().Emitter(new(event.EvtMessageReceived),eventbus.Stateful)
+func NewPMService(h host.Host, ebus lpevent.Bus) *PMService {
+	emMsg, err := ebus.Emitter(new(event.EvtMessageReceived), eventbus.Stateful)
 	if err != nil {
 		log.Errorf("error reading message: %s", err.Error())
 		panic("failed to create message service")
 	}
-	pms := &PMService{h, em}
+	emStatus, err := ebus.Emitter(new(event.EvtObject), eventbus.Stateful)
+	if err != nil {
+		log.Errorf("error reading message: %s", err.Error())
+		panic("failed to create message service")
+	}
+	pms := &PMService{h, emMsg, emStatus}
 	h.SetStreamHandler(ID, pms.PMHandler)
 	log.Debug("service PMS created")
 	return pms
@@ -66,7 +72,37 @@ func (pms *PMService) Send(pbmsg *pb.Message, to entity.ID) {
 		log.Errorf("can not connect to peer: %s reason: %s", to.String(), err.Error())
 		return
 	}
-	send(context.Background(), pms.Host, pbmsg, p)
+	nctx := network.WithUseTransient(context.Background(), "just a chat")
+	s, err := pms.Host.NewStream(nctx, p, ID)
+	if err != nil {
+		log.Errorf("new stream failed: %s", err)
+		return
+	}
+	if err := s.Scope().ReserveMemory(MaxMsgSize, network.ReservationPriorityAlways); err != nil {
+		log.Debugf("error reserving memory for message stream: %s", err)
+		s.Reset()
+		return
+		// return 0, err
+	}
+	defer s.Scope().ReleaseMemory(MaxMsgSize)
+	wr := protoio.NewDelimitedWriter(s)
+	defer func() {
+		wr.Close()
+	}()
+	if err != nil {
+		log.Errorf("error connecting %s", err)
+		return
+	}
+	log.Debugf("text sent with message text: %s", pbmsg.GetText())
+	wr.WriteMsg(pbmsg)
+	if err != nil {
+		log.Errorf("write err %s", err)
+		return
+	}
+	evgrp := event.NewMessagingEventGroup()
+	ev, _ := evgrp.Make("ChangeMessageStatus", entity.Sent, entity.ID(pbmsg.Id))
+	pms.emStatus.Emit(*ev)
+
 }
 
 func (c *PMService) PMHandler(str network.Stream) {
@@ -97,41 +133,11 @@ func (c *PMService) PMHandler(str network.Stream) {
 		return
 	}
 	log.Debugf("message received ... %s", msg.GetText())
-	err = c.em.Emit(event.EvtMessageReceived{Msg: &msg})
+	err = c.emMsg.Emit(event.EvtMessageReceived{Msg: &msg})
 	if err != nil {
 		log.Errorf("failed to emit event: %s", err.Error())
 		str.Reset()
 		return
 	}
 	// defer emmiter.Close()
-}
-
-func send(ctx context.Context, h host.Host, msg *pb.Message, to peer.ID) {
-	nctx := network.WithUseTransient(ctx, "just a chat")
-	s, err := h.NewStream(nctx, to, ID)
-	if err != nil {
-		log.Errorf("new stream failed: %s", err)
-		return
-	}
-	if err := s.Scope().ReserveMemory(MaxMsgSize, network.ReservationPriorityAlways); err != nil {
-		log.Debugf("error reserving memory for message stream: %s", err)
-		s.Reset()
-		return
-		// return 0, err
-	}
-	defer s.Scope().ReleaseMemory(MaxMsgSize)
-	wr := protoio.NewDelimitedWriter(s)
-	defer func() {
-		wr.Close()
-	}()
-	if err != nil {
-		log.Errorf("error connecting %s", err)
-		return
-	}
-	log.Debugf("message text: %s", msg.GetText())
-	wr.WriteMsg(msg)
-	if err != nil {
-		log.Errorf("write err %s", err)
-		return
-	}
 }
