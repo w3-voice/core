@@ -22,6 +22,7 @@ const (
 	Pending Status = iota
 	Sent
 	Seen
+	Received
 )
 
 type Identity struct {
@@ -86,6 +87,7 @@ func CreateIdentity(name string) (Identity, error) {
 
 type Message struct {
 	ID        ID
+	ChatID    ID
 	CreatedAt time.Time
 	Text      string
 	Status    Status
