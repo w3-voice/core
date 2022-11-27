@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hood-chat/core"
+	"github.com/hood-chat/core/entity"
 	logging "github.com/ipfs/go-log"
 	"github.com/stretchr/testify/require"
 )
@@ -29,9 +30,6 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 
 	time.Sleep(30 * time.Second)
-	// h1.Peerstore().AddAddr(h2.ID(), h2.Addrs()[0], peerstore.PermanentAddrTTL)
-	// _, err = h1.NewStream(ctx, h2.ID(), core.ID)
-	// require.NoError(t, err)
 
 	chat1, err := mr1.CreatePMChat(user2.ID)
 	require.NoError(t, err)
@@ -48,6 +46,12 @@ func TestMessenger(t *testing.T) {
 
 	msgs, err := mr2.GetMessages(chat1.ID)
 	require.NoError(t, err)
-	t.Logf("list of messages \n %v", msgs[0].Text)
+	t.Logf("list of messages \n %v", msgs)
+	// Test Event hand event handler
+	msgs, err = mr1.GetMessages(chat1.ID)
+	require.NoError(t, err)
+	for _, val := range msgs {
+		require.Equal(t, val.Status, entity.Sent)
+	}
 
 }
