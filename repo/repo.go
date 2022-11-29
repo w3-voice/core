@@ -100,12 +100,12 @@ func (c ChatRepo) Get() (entity.ChatInfo, error) {
 }
 
 type MessageRepo struct {
-	store  store.Store
+	store store.Store
 }
 
 func NewMessageRepo(store *store.Store) IRepo[entity.Message] {
 	return MessageRepo{
-		store:  *store,
+		store: *store,
 	}
 }
 
@@ -116,7 +116,7 @@ func (m MessageRepo) Add(msg entity.Message) error {
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
 		Status:    store.Status(msg.Status),
-		Author:    store.BHContact{Name:msg.Author.Name,ID: string(msg.Author.ID)},
+		Author:    store.BHContact{Name: msg.Author.Name, ID: string(msg.Author.ID)},
 	}
 	err := m.store.InsertTextMessage(tmsg)
 	if err != nil {
@@ -125,13 +125,13 @@ func (m MessageRepo) Add(msg entity.Message) error {
 	return nil
 }
 func (m MessageRepo) Set(msg entity.Message) error {
-	tmsg := store.BHTextMessage {
+	tmsg := store.BHTextMessage{
 		ID:        string(msg.ID),
-		ChatID:    string(msg.ID),
+		ChatID:    string(msg.ChatID),
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
 		Status:    store.Status(msg.Status),
-		Author:    store.BHContact{Name:msg.Author.Name,ID: string(msg.Author.ID)},
+		Author:    store.BHContact{Name: msg.Author.Name, ID: string(msg.Author.ID)},
 	}
 	return m.store.UpdateMessage(tmsg)
 }
@@ -140,9 +140,9 @@ func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
 	if err != nil {
 		return entity.Message{}, err
 	}
-	msg := entity.Message {
-		ID: entity.ID(bhmsg.ID),
-		ChatID: entity.ID(bhmsg.ChatID),
+	msg := entity.Message{
+		ID:        entity.ID(bhmsg.ID),
+		ChatID:    entity.ID(bhmsg.ChatID),
 		CreatedAt: bhmsg.CreatedAt,
 		Text:      bhmsg.Text,
 		Status:    entity.Status(bhmsg.Status),

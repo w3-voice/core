@@ -238,9 +238,9 @@ func (m *Messenger) MessageHandler(msg *pb.Message) {
 	newMsg := entity.Message{
 		ID:        msgID,
 		ChatID:    chat.ID,
-		CreatedAt: time.Unix(msg.GetCreatedAt(), 0),
+		CreatedAt: msg.GetCreatedAt(),
 		Text:      msg.GetText(),
-		Status:    entity.Sent,
+		Status:    entity.Received,
 		Author:    con,
 	}
 	rmsg := m.getMessageRepo()
@@ -262,7 +262,7 @@ func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, e
 	msg := entity.Message{
 		ID:        entity.ID(uuid.New().String()),
 		ChatID:    chatID,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: time.Now().UTC().Unix(),
 		Text:      content,
 		Status:    entity.Pending,
 		Author:    *m.identity.Me(),
@@ -289,7 +289,7 @@ func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, e
 		Text:      msg.Text,
 		Id:        msg.ID.String(),
 		ChatId:    chatID.String(),
-		CreatedAt: msg.CreatedAt.Unix(),
+		CreatedAt: msg.CreatedAt,
 		Type:      "text",
 		Sig:       "",
 		Author: &pb.Contact{
@@ -305,6 +305,10 @@ func (m *Messenger) GetMessages(chatID entity.ID) ([]entity.Message, error) {
 	filter := make(repo.Filter, 0)
 	filter["chatID"] = string(chatID)
 	return m.getMessageRepo().GetAll(filter)
+}
+
+func (m *Messenger) GetMessage(ID entity.ID) (entity.Message, error) {
+	return m.getMessageRepo().GetByID(ID)
 }
 
 func (m *Messenger) generatePMChatID(con entity.Contact) entity.ID {

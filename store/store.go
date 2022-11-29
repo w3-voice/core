@@ -1,8 +1,6 @@
 package store
 
 import (
-	"time"
-
 	"github.com/timshannon/badgerhold/v4"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -16,6 +14,7 @@ const (
 	Pending Status = iota
 	Sent
 	Seen
+	Received
 )
 
 type BHIdentity struct {
@@ -36,9 +35,10 @@ type BHChat struct {
 }
 
 type BHTextMessage struct {
+	// BID       int64 `badgerhold:"key"`
 	ID        string `badgerhold:"unique"`
 	ChatID    string `badgerhold:"index"`
-	CreatedAt time.Time
+	CreatedAt int64
 	Text      string
 	Status    Status
 	Author    BHContact
@@ -101,19 +101,8 @@ func (s *Store) MsgByID(id string) (BHTextMessage, error) {
 }
 
 func (s *Store) UpdateMessage(msg BHTextMessage) error {
-	return s.bh.UpdateMatching(new(BHTextMessage), badgerhold.Where("ID").Eq(msg.ID),func(record interface{}) error {
-		update, ok := record.(*BHTextMessage)
-		if !ok {
-			return badgerhold.ErrNotFound
-		}
-		update.Author = msg.Author
-		update.ChatID = msg.ChatID
-		update.ID = msg.ID
-		update.CreatedAt = msg.CreatedAt
-		update.Status = msg.Status
-		update.Text = msg.Text
-		return nil
-	})
+	// tx := s.bh.Badger().NewTransaction(true)
+	return s.bh.Update(msg.ID, msg)
 }
 
 func (s *Store) AllContacts() ([]BHContact, error) {

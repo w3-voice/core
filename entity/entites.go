@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -88,7 +87,7 @@ func CreateIdentity(name string) (Identity, error) {
 type Message struct {
 	ID        ID
 	ChatID    ID
-	CreatedAt time.Time
+	CreatedAt int64
 	Text      string
 	Status    Status
 	Author    Contact
