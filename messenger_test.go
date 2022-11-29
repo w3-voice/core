@@ -29,7 +29,7 @@ func TestMessenger(t *testing.T) {
 	err = mr1.AddContact(*user2.Me())
 	require.NoError(t, err)
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	chat1, err := mr1.CreatePMChat(user2.ID)
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestMessenger(t *testing.T) {
 	_, err = mr1.SendPM(chat1.ID, "hello")
 	require.NoError(t, err)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	chat2, err := mr2.GetChat(chat1.ID)
 	require.NoError(t, err)
@@ -48,8 +48,11 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("list of messages \n %v", msgs)
 	// Test Event hand event handler
+	time.Sleep(10 * time.Second)
 	msgs, err = mr1.GetMessages(chat1.ID)
+	require.Equal(t, 2, len(msgs))
 	require.NoError(t, err)
+
 	for _, val := range msgs {
 		require.Equal(t, val.Status, entity.Sent)
 	}
