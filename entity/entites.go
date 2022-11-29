@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -12,15 +11,21 @@ import (
 )
 
 type Status int
+type ID string
+
+func (id ID) String() string {
+	return string(id)
+}
 
 const (
 	Pending Status = iota
 	Sent
 	Seen
+	Received
 )
 
 type Identity struct {
-	ID      string
+	ID      ID
 	Name    string
 	PrivKey string
 }
@@ -73,27 +78,28 @@ func CreateIdentity(name string) (Identity, error) {
 	if err != nil {
 		return ident, err
 	}
-	ident.ID = id.Pretty()
+	ident.ID = ID(id.String())
 	ident.Name = name
 	fmt.Printf("peer identity: %s\n", ident.ID)
 	return ident, nil
 }
 
 type Message struct {
-	ID        string
-	CreatedAt time.Time
+	ID        ID
+	ChatID    ID
+	CreatedAt int64
 	Text      string
 	Status    Status
 	Author    Contact
 }
 
 type Contact struct {
-	ID   string
+	ID   ID
 	Name string
 }
 
 type ChatInfo struct {
-	ID      string
+	ID      ID
 	Name    string
 	Members []Contact
 }

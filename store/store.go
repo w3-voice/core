@@ -1,12 +1,12 @@
 package store
 
 import (
-	"fmt"
-	"log"
-	"time"
-
 	"github.com/timshannon/badgerhold/v4"
+
+	logging "github.com/ipfs/go-log/v2"
 )
+
+var log = logging.Logger("msgr-core-store")
 
 type Status int
 
@@ -14,29 +14,31 @@ const (
 	Pending Status = iota
 	Sent
 	Seen
+	Received
 )
 
 type BHIdentity struct {
-	ID   string
+	ID   string `badgerhold:"unique"`
 	Name string
 	Key  string
 }
 
 type BHContact struct {
-	ID   string
+	ID   string `badgerhold:"unique"`
 	Name string
 }
 
 type BHChat struct {
 	Name    string
-	ID      string
+	ID      string `badgerhold:"unique"`
 	Members []string
 }
 
 type BHTextMessage struct {
-	ID        string
+	// BID       int64 `badgerhold:"key"`
+	ID        string `badgerhold:"unique"`
 	ChatID    string `badgerhold:"index"`
-	CreatedAt time.Time
+	CreatedAt int64
 	Text      string
 	Status    Status
 	Author    BHContact
@@ -91,6 +93,18 @@ func (s *Store) ChatMessages(id string) ([]BHTextMessage, error) {
 	return res, err
 }
 
+func (s *Store) MsgByID(id string) (BHTextMessage, error) {
+	var res BHTextMessage
+	q := badgerhold.Where("ID").Eq(id)
+	err := s.bh.FindOne(&res, q)
+	return res, err
+}
+
+func (s *Store) UpdateMessage(msg BHTextMessage) error {
+	// tx := s.bh.Badger().NewTransaction(true)
+	return s.bh.Update(msg.ID, msg)
+}
+
 func (s *Store) AllContacts() ([]BHContact, error) {
 	var res []BHContact
 	q := &badgerhold.Query{}
@@ -127,7 +141,6 @@ func (s *Store) GetIdentity() (BHIdentity, error) {
 	q := &badgerhold.Query{}
 	err := s.bh.FindOne(&res, q)
 	if err != nil {
-		fmt.Printf("we are fucked")
 		return BHIdentity{}, err
 	}
 	return res, err
