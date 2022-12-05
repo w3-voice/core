@@ -35,7 +35,7 @@ func TestContact(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	res, err := s.AllContacts()
+	res, err := s.AllContacts(0, 10)
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res, data) {
 		t.Error("in and out are not equal")
@@ -108,7 +108,7 @@ func TestChat(t *testing.T) {
 				ID:   "1",
 				Name: "blue",
 			},
-			CreatedAt: time.Now().Round(0),
+			CreatedAt: time.Now().Unix(),
 			Text:      "asdf cbdgf",
 			Status:    store.Pending,
 		},
@@ -119,7 +119,7 @@ func TestChat(t *testing.T) {
 				ID:   "2",
 				Name: "red",
 			},
-			CreatedAt: time.Now().Round(0),
+			CreatedAt: time.Now().Unix() - 100,
 			Text:      "123 123 345",
 			Status:    store.Pending,
 		},
@@ -130,7 +130,7 @@ func TestChat(t *testing.T) {
 				ID:   "3",
 				Name: "blue",
 			},
-			CreatedAt: time.Now().Round(0),
+			CreatedAt: time.Now().Unix(),
 			Text:      "asdrytxcv 567567",
 			Status:    store.Pending,
 		},
@@ -141,7 +141,7 @@ func TestChat(t *testing.T) {
 				ID:   "1",
 				Name: "blue",
 			},
-			CreatedAt: time.Now().Round(0),
+			CreatedAt: time.Now().Unix() - 100,
 			Text:      "x.zcvm,dlfkjgerotiu ",
 			Status:    store.Pending,
 		},
@@ -151,7 +151,7 @@ func TestChat(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	res, err := s.ChatList()
+	res, err := s.ChatList(0, 10)
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res, test_chat) {
 		t.Error("in and out are not equal")
@@ -163,7 +163,7 @@ func TestChat(t *testing.T) {
 		t.Error("in and out are not equal")
 	}
 
-	res3, err := s.ChatMessages("1")
+	res3, err := s.ChatMessages("1", 0, 10)
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res3, test_msg[:2]) {
 		t.Error("in and out are not equal")
@@ -172,10 +172,9 @@ func TestChat(t *testing.T) {
 
 }
 
-
 func TestIdentity(t *testing.T) {
 	s, err := store.NewStore(t.TempDir())
-	expected := store.BHIdentity{ID:"001", Name: "farhoud", Key: "privatekey"}
+	expected := store.BHIdentity{ID: "001", Name: "farhoud", Key: "privatekey"}
 	require.NoError(t, err)
 
 	err = s.SetIdentity(expected)

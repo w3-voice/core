@@ -10,15 +10,50 @@ import (
 var ErrNotImplemented = errors.New("not implemented")
 var ErrNotSupported = errors.New("not supported")
 
+
+//TODO: after adding IOption look like we can remove GetAll and GetByID
 type IRepo[C any] interface {
 	Get() (C, error)
 	GetByID(id entity.ID) (C, error)
-	GetAll(filter Filter) ([]C, error)
+	GetAll(opt IOption) ([]C, error)
 	Set(C) error
 	Add(C) error
 }
 
+type IOption interface {
+	Skip() int
+	Limit() int
+	AddFilter(field string, value string)
+	Filters() Filter
+}
+
 type Filter map[string]string
+
+type Option struct {
+	skip    int
+	limit   int
+	filters Filter
+}
+
+func NewOption(skip int, limit int) IOption {
+	return Option{skip, limit, make(Filter)}
+}
+
+func (o Option) Skip() int {
+	return o.skip
+}
+
+func (o Option) Limit() int {
+	return o.limit
+}
+
+func (o Option) AddFilter(n string, s string) {
+	o.filters[n] = s
+}
+
+func (o Option) Filters() Filter {
+	return o.filters
+}
 
 func NewChatRepo(store *store.Store) IRepo[entity.ChatInfo] {
 	return ChatRepo{
@@ -30,8 +65,8 @@ type ChatRepo struct {
 	store *store.Store
 }
 
-func (c ChatRepo) GetAll(_ Filter) ([]entity.ChatInfo, error) {
-	chl, err := c.store.ChatList()
+func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
+	chl, err := c.store.ChatList(opt.Skip(), opt.Limit())
 	if err != nil {
 		return nil, err
 	}
@@ -153,13 +188,13 @@ func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
 	}
 	return msg, nil
 }
-func (m MessageRepo) GetAll(f Filter) ([]entity.Message, error) {
+func (m MessageRepo) GetAll(opt IOption) ([]entity.Message, error) {
 	messages := make([]entity.Message, 0)
-	chID, pres := f["chatID"]
+	chID, pres := opt.Filters()["chatID"]
 	if !pres {
 		return nil, ErrNotSupported
 	}
-	bhm, err := m.store.ChatMessages(string(chID))
+	bhm, err := m.store.ChatMessages(string(chID), opt.Skip(), opt.Limit())
 	if err != nil {
 		return nil, err
 	}
@@ -216,9 +251,9 @@ func (c ContactRepo) GetByID(id entity.ID) (entity.Contact, error) {
 		Name: con.Name,
 	}, nil
 }
-func (c ContactRepo) GetAll(_ Filter) ([]entity.Contact, error) {
+func (c ContactRepo) GetAll(opt IOption) ([]entity.Contact, error) {
 	cons := make([]entity.Contact, 0)
-	bhcl, err := c.store.AllContacts()
+	bhcl, err := c.store.AllContacts(opt.Skip(), opt.Limit())
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +297,7 @@ func (i IdentityRepo) Set(iden entity.Identity) error {
 func (i IdentityRepo) GetByID(id entity.ID) (entity.Identity, error) {
 	return entity.Identity{}, ErrNotImplemented
 }
-func (i IdentityRepo) GetAll(_ Filter) ([]entity.Identity, error) {
+func (i IdentityRepo) GetAll(_ IOption) ([]entity.Identity, error) {
 	id, err := i.store.GetIdentity()
 	if err != nil {
 		return nil, err
