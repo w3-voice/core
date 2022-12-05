@@ -145,9 +145,10 @@ func (m *Messenger) GetIdentity() (entity.Identity, error) {
 	return m.identity, nil
 }
 
-func (m *Messenger) GetContacts() ([]entity.Contact, error) {
+func (m *Messenger) GetContacts(skip int, limit int) ([]entity.Contact, error) {
 	rContact := m.getContactRepo()
-	return rContact.GetAll(nil)
+	opt := repo.NewOption(skip, limit)
+	return rContact.GetAll(opt)
 }
 
 func (m *Messenger) GetContact(id entity.ID) (entity.Contact, error) {
@@ -170,9 +171,10 @@ func (m *Messenger) GetChat(id entity.ID) (entity.ChatInfo, error) {
 	return c, nil
 }
 
-func (m *Messenger) GetChats() ([]entity.ChatInfo, error) {
+func (m *Messenger) GetChats(skip int, limit int) ([]entity.ChatInfo, error) {
 	rChat := repo.NewChatRepo(m.store)
-	return rChat.GetAll(nil)
+	opt := repo.NewOption(skip, limit)
+	return rChat.GetAll(opt)
 }
 
 func (m *Messenger) CreatePMChat(contactID entity.ID) (entity.ChatInfo, error) {
@@ -301,10 +303,10 @@ func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, e
 	return &msg, nil
 }
 
-func (m *Messenger) GetMessages(chatID entity.ID) ([]entity.Message, error) {
-	filter := make(repo.Filter, 0)
-	filter["chatID"] = string(chatID)
-	return m.getMessageRepo().GetAll(filter)
+func (m *Messenger) GetMessages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {
+	opt := repo.NewOption(skip, limit)
+	opt.AddFilter("chatID", string(chatID))
+	return m.getMessageRepo().GetAll(opt)
 }
 
 func (m *Messenger) GetMessage(ID entity.ID) (entity.Message, error) {

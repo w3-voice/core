@@ -79,17 +79,21 @@ func (s *Store) InsertChat(ch BHChat) error {
 	return err
 }
 
-func (s *Store) ChatList() ([]BHChat, error) {
+func (s *Store) ChatList(skip int, limit int) ([]BHChat, error) {
 	var res []BHChat
 	q := &badgerhold.Query{}
-	err := s.bh.Find(&res, q.Limit(50))
+	q.Limit(limit)
+	q.Skip(skip)
+	err := s.bh.Find(&res, q)
 	return res, err
 }
 
-func (s *Store) ChatMessages(id string) ([]BHTextMessage, error) {
+func (s *Store) ChatMessages(id string, skip int, limit int) ([]BHTextMessage, error) {
 	var res []BHTextMessage
-	q := badgerhold.Where("ChatID").Eq(id)
-	err := s.bh.Find(&res, q.Limit(50))
+	q := badgerhold.Where("ChatID").Eq(id).SortBy("CreatedAt").Reverse()
+	q.Limit(limit)
+	q.Skip(skip)
+	err := s.bh.Find(&res, q)
 	return res, err
 }
 
@@ -105,10 +109,12 @@ func (s *Store) UpdateMessage(msg BHTextMessage) error {
 	return s.bh.Update(msg.ID, msg)
 }
 
-func (s *Store) AllContacts() ([]BHContact, error) {
+func (s *Store) AllContacts(skip int, limit int) ([]BHContact, error) {
 	var res []BHContact
 	q := &badgerhold.Query{}
-	err := s.bh.Find(&res, q.Limit(50))
+	q.Limit(limit)
+	q.Skip(skip)
+	err := s.bh.Find(&res, q)
 	return res, err
 }
 
