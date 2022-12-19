@@ -82,8 +82,7 @@ func (m *Messenger) Start() {
 		panic(err)
 	}
 	m.Host = h
-	pms := NewPMService(h, m.bus)
-	m.pms = *pms
+	m.pms = NewPMService(h, m.bus)
 
 	sub, err := m.bus.Subscribe(new(event.EvtMessageReceived))
 	if err != nil {
@@ -281,25 +280,13 @@ func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, e
 		log.Errorf("Can not get chat %s", err.Error())
 		return nil, err
 	}
-	to := []entity.ID{}
-	for _, val := range chat.Members {
-		if val.ID != msg.Author.ID {
-			to = append(to, val.ID)
+	for _, to := range chat.Members {
+		if to.ID != msg.Author.ID {
+			log.Debugf("outbox message")
+			m.pms.Send(entity.Envelop{To: to, Message: msg})
+			log.Debugf("outboxed message")
 		}
 	}
-	pbmsg := &pb.Message{
-		Text:      msg.Text,
-		Id:        msg.ID.String(),
-		ChatId:    chatID.String(),
-		CreatedAt: msg.CreatedAt,
-		Type:      "text",
-		Sig:       "",
-		Author: &pb.Contact{
-			Id:   msg.Author.ID.String(),
-			Name: msg.Author.Name,
-		},
-	}
-	go m.pms.Send(pbmsg, to[0])
 	return &msg, nil
 }
 
@@ -335,4 +322,9 @@ func (m *Messenger) updateMessageStatus(msgID entity.ID, status entity.Status) e
 
 func (m *Messenger) EventBus() lpevt.Bus {
 	return m.bus
+}
+
+func (m *Messenger) Stop() {
+	m.pms.Stop()
+	m.Host.Close()
 }
