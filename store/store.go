@@ -15,6 +15,7 @@ const (
 	Sent
 	Seen
 	Received
+	Failed
 )
 
 type BHIdentity struct {
