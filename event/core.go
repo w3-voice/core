@@ -39,7 +39,7 @@ type MessagingEventGroup struct {
 
 func NewMessagingEventGroup() MessagingEventGroup {
 	return MessagingEventGroup{
-		Actions: map[entity.Status]string{entity.Seen: "seen", entity.Sent: "sent", entity.Pending: "pending", entity.Received: "received"},
+		Actions: map[entity.Status]string{entity.Seen: "seen", entity.Sent: "sent", entity.Pending: "pending", entity.Received: "received", entity.Failed: "failed"},
 		Names:   map[string]string{"ChangeMessageStatus": "ChangeMessageStatus"},
 	}
 }

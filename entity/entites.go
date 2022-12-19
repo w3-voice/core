@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/hood-chat/core/pb"
 )
 
 type Status int
@@ -22,6 +23,7 @@ const (
 	Sent
 	Seen
 	Received
+	Failed
 )
 
 type Identity struct {
@@ -97,6 +99,40 @@ type Contact struct {
 	ID   ID
 	Name string
 }
+
+func (c Contact) AdderInfo() (*peer.AddrInfo, error){
+	p, err := c.PeerID()
+	if err != nil {
+		return nil, err
+	}
+	return peer.AddrInfoFromString("/p2p/" + p.String())
+}
+
+func (c Contact) PeerID() (peer.ID, error) {
+	return peer.Decode(string(c.ID))
+}
+
+type Envelop struct {
+	To Contact
+	Message Message
+}
+
+func (n Envelop) Proto() *pb.Message {
+	msg := n.Message
+	return &pb.Message{
+		Text:      msg.Text,
+		Id:        msg.ID.String(),
+		ChatId:    msg.ChatID.String(),
+		CreatedAt: msg.CreatedAt,
+		Type:      "text",
+		Sig:       "",
+		Author: &pb.Contact{
+			Id:   msg.Author.ID.String(),
+			Name: msg.Author.Name,
+		},
+	}
+}
+
 
 type ChatInfo struct {
 	ID      ID
