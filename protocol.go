@@ -47,10 +47,10 @@ func NewPMService(h host.Host, ebus lpevent.Bus) PMService {
 }
 
 type pmService struct {
-	host host.Host
+	host      host.Host
 	connector Connector
-	backoff bf.BackoffFactory
-	nvlpCh  chan entity.Envelop
+	backoff   bf.BackoffFactory
+	nvlpCh    chan entity.Envelop
 
 	emitters struct {
 		evtMessageReceived      lpevent.Emitter
@@ -87,7 +87,7 @@ func newPMService(h host.Host, ebus lpevent.Bus) PMService {
 
 func (c *pmService) sendWithBackoff(ctx context.Context, p peer.ID, pbmsg *pb.Message) {
 	bfk := c.backoff()
-	ticker := time.NewTicker(1 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Second)
 	maxtry := 5
 	for {
 		select {
@@ -98,7 +98,7 @@ func (c *pmService) sendWithBackoff(ctx context.Context, p peer.ID, pbmsg *pb.Me
 				ticker.Reset(bfk.Delay())
 				continue
 			}
-			c.emitMessageChange(entity.Failed, pbmsg.Id)
+			c.failed(pbmsg.Id, p)
 			return
 
 		case <-ctx.Done():
@@ -245,15 +245,13 @@ func (c *pmService) Stop() {
 
 func (c *pmService) done(msgID string, pid peer.ID) {
 	c.emitMessageChange(entity.Sent, msgID)
-	c.connector.Done(msgID, pid)
+	c.connector.Done(ID, pid)
 }
 
 func (c *pmService) failed(msgID string, pid peer.ID) {
 	c.emitMessageChange(entity.Failed, msgID)
-	c.connector.Done(msgID, pid)
+	c.connector.Done(ID, pid)
 }
-
-
 
 func (c *pmService) emitMessageChange(status entity.Status, msgID string) {
 	evgrp := event.NewMessagingEventGroup()
@@ -271,8 +269,8 @@ func (pm *pmsNotifiee) pmService() *pmService {
 	return (*pmService)(pm)
 }
 
-func (pm *pmsNotifiee) Listen(network.Network,ma.Multiaddr) {}
-func (pm *pmsNotifiee) ListenClose(network.Network, ma.Multiaddr) {}
+func (pm *pmsNotifiee) Listen(network.Network, ma.Multiaddr)       {}
+func (pm *pmsNotifiee) ListenClose(network.Network, ma.Multiaddr)  {}
 func (pm *pmsNotifiee) Disconnected(network.Network, network.Conn) {}
 func (pm *pmsNotifiee) Connected(n network.Network, c network.Conn) {
 	log.Debug("connected")
@@ -287,4 +285,3 @@ func (pm *pmsNotifiee) Connected(n network.Network, c network.Conn) {
 		}
 	}
 }
-
