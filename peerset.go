@@ -9,7 +9,6 @@ import (
 	bf "github.com/libp2p/go-libp2p/p2p/discovery/backoff"
 )
 
-
 type connCacheData struct {
 	nextTry time.Time
 	strat   bf.BackoffStrategy
@@ -24,15 +23,15 @@ type Info struct {
 }
 
 type PeerSet struct {
-	set map[peer.ID]Info
+	set map[peer.ID]*Info
 	mux sync.Mutex
 	bfk bf.BackoffFactory
 }
 
 func NewPeerSet() *PeerSet {
 	ps := &PeerSet{}
-	ps.bfk = bf.NewExponentialBackoff(time.Millisecond*650, time.Second*7, bf.NoJitter, time.Second, 1.5, -time.Millisecond*400, rand.NewSource(0))
-	ps.set = make(map[peer.ID]Info)
+	ps.bfk = bf.NewExponentialBackoff(5*time.Second, time.Minute*1, bf.NoJitter, time.Second, 1.5, -time.Millisecond*400, rand.NewSource(0))
+	ps.set = make(map[peer.ID]*Info)
 	ps.mux = sync.Mutex{}
 	return ps
 }
@@ -66,7 +65,7 @@ func (p *PeerSet) Add(proc string, pa peer.AddrInfo) {
 		set := make(map[string]int)
 		set[proc] = 1
 		strat := p.bfk()
-		p.set[pa.ID] = Info{process: set, cache: connCacheData{strat: strat, nextTry: time.Now()}, peerInfo: pa, done: false}
+		p.set[pa.ID] = &Info{process: set, cache: connCacheData{strat: strat, nextTry: time.Now()}, peerInfo: pa, done: false}
 	}
 }
 
@@ -77,27 +76,31 @@ func (p *PeerSet) Remove(proc string, pid peer.ID) {
 	if ok {
 
 		p.subRefCount(info.process, proc)
+		_, ok = info.process[proc]
+		if !ok {
+			delete(p.set, pid)
+		}
+		return
 	}
-	_, ok = info.process[proc]
-	if !ok {
-		delete(p.set, pid)
-	}
+	// panic("not exist")
+
 }
 
-func (p *PeerSet) turn(t time.Time) []peer.AddrInfo {
+func (p *PeerSet) Turn(t time.Time) []peer.AddrInfo {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	res := make([]peer.AddrInfo, 0)
-	for _, val := range p.set {
+	for key, val := range p.set {
 		if val.cache.nextTry.Before(t) && !val.done && !val.working {
 			res = append(res, val.peerInfo)
 			val.working = true
+			p.set[key] = val
 		}
 	}
 	return res
 }
 
-func (p *PeerSet) done(id peer.ID) {
+func (p *PeerSet) Done(id peer.ID) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	info, ok := p.set[id]
@@ -108,7 +111,7 @@ func (p *PeerSet) done(id peer.ID) {
 	}
 }
 
-func (p *PeerSet) fail(id peer.ID) {
+func (p *PeerSet) Failed(id peer.ID) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	info, ok := p.set[id]
@@ -119,7 +122,7 @@ func (p *PeerSet) fail(id peer.ID) {
 	}
 }
 
-func (p *PeerSet) force(id peer.ID){
+func (p *PeerSet) Force(id peer.ID) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	info, ok := p.set[id]
@@ -129,8 +132,8 @@ func (p *PeerSet) force(id peer.ID){
 	}
 }
 
-func (p *PeerSet) allDone() bool {
+func (p *PeerSet) Empty() bool {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	return len(p.set) < 1
+	return len(p.set) == 0
 }

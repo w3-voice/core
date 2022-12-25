@@ -24,7 +24,6 @@ var BootstrapNodes = []string{
 	"/ip4/45.90.74.114/udp/4001/quic/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
 	"/ip4/194.5.178.130/tcp/4001/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
 	"/ip4/194.5.178.130/udp/4001/quic/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
-
 }
 
 type HostBuilder interface {
@@ -97,7 +96,12 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	// sw,err := swarm.NewSwarm(basicHost.ID(),basicHost.Peerstore(),swarm.WithDialTimeout(1*time.Minute))
+	// if err != nil {
+	// 	return nil, err
+	// }
 
+	basicHost.Network()
 	// Construct a datastore (needed by the DHT). This is just a simple, in-memory thread-safe datastore.
 	dstore := dsync.MutexWrap(ds.NewMapDatastore())
 
