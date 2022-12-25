@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/hood-chat/core/entity"
@@ -51,13 +50,11 @@ type pmService struct {
 	connector Connector
 	backoff   bf.BackoffFactory
 	nvlpCh    chan entity.Envelop
-
-	emitters struct {
+	outbox    *outbox
+	emitters  struct {
 		evtMessageReceived      lpevent.Emitter
 		evtMessageStatusChanged lpevent.Emitter
 	}
-	mux    sync.Mutex
-	outbox map[peer.ID][]*pb.Message
 }
 
 func newPMService(h host.Host, ebus lpevent.Bus) PMService {
@@ -77,35 +74,12 @@ func newPMService(h host.Host, ebus lpevent.Bus) PMService {
 	h.SetStreamHandler(ID, pms.Handler)
 	log.Debug("service PMS created")
 	pms.nvlpCh = make(chan entity.Envelop)
-	pms.outbox = make(map[peer.ID][]*pb.Message)
-	pms.backoff = bf.NewPolynomialBackoff(time.Second, time.Second*33, bf.NoJitter, time.Second, []float64{0.5, 2, 3}, rand.NewSource(0))
+	pms.outbox = newOutBox()
+	pms.backoff = bf.NewPolynomialBackoff(time.Second*5, time.Second*10, bf.NoJitter, time.Second, []float64{5, 7, 10}, rand.NewSource(0))
 	pms.connector = NewConnector(h)
 	pms.host.Network().Notify((*pmsNotifiee)(pms))
 	go pms.background(context.Background(), pms.nvlpCh)
 	return pms
-}
-
-func (c *pmService) sendWithBackoff(ctx context.Context, p peer.ID, pbmsg *pb.Message) {
-	bfk := c.backoff()
-	ticker := time.NewTicker(1 * time.Second)
-	maxtry := 5
-	for {
-		select {
-		case <-ticker.C:
-			ticker.Stop()
-			err := c.send(p, pbmsg)
-			if err != nil && maxtry > 0 {
-				ticker.Reset(bfk.Delay())
-				continue
-			}
-			c.failed(pbmsg.Id, p)
-			return
-
-		case <-ctx.Done():
-			return
-		}
-	}
-
 }
 
 func (c *pmService) send(p peer.ID, pbmsg *pb.Message) error {
@@ -147,23 +121,10 @@ func (c *pmService) Send(nvlop entity.Envelop) {
 }
 
 func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop) {
-	ticker := time.NewTicker(1 * time.Minute)
 	for {
 		select {
-		case t := <-ticker.C:
-			c.mux.Lock()
-			tmp := make(map[peer.ID][]*pb.Message)
-			for k, v := range c.outbox {
-				for _, m := range v {
-					if m.CreatedAt+(60*5) >= t.UTC().Unix() {
-						c.failed(m.Id, k)
-					} else {
-						tmp[k] = append(tmp[k], m)
-					}
-				}
-			}
-			c.outbox = tmp
-			c.mux.Unlock()
+		case m := <-c.outbox.failed:
+			c.failed(m.Proto().Id, peer.ID(m.To.ID))
 		case nvlp := <-nvlpCh:
 			h := c.host
 			pi, err := nvlp.To.AdderInfo()
@@ -174,30 +135,23 @@ func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop
 			if pi.ID == c.host.ID() || pi.ID == "" {
 				continue
 			}
+			c.connector.Need(nvlp.Proto().Id, *pi)
 			cns := h.Network().Connectedness(pi.ID)
 			switch cns {
 			case network.Connected:
-
 				err := c.send(pi.ID, nvlp.Proto())
 				if err != nil {
-					c.outboxed(pi, nvlp.Proto())
+					c.outbox.put(pi.ID, &nvlp)
 				}
 
 			default:
-				c.outboxed(pi, nvlp.Proto())
+				c.outbox.put(pi.ID, &nvlp)
 			}
 		case <-ctx.Done():
 			log.Errorf("context error broke sender")
 		}
 
 	}
-}
-
-func (c *pmService) outboxed(to *peer.AddrInfo, msg *pb.Message) {
-	c.mux.Lock()
-	c.outbox[to.ID] = append(c.outbox[to.ID], msg)
-	c.mux.Unlock()
-	go c.connector.Need(ID, *to)
 }
 
 func (c *pmService) Handler(str network.Stream) {
@@ -245,12 +199,12 @@ func (c *pmService) Stop() {
 
 func (c *pmService) done(msgID string, pid peer.ID) {
 	c.emitMessageChange(entity.Sent, msgID)
-	c.connector.Done(ID, pid)
+	c.connector.Done(msgID, pid)
 }
 
 func (c *pmService) failed(msgID string, pid peer.ID) {
 	c.emitMessageChange(entity.Failed, msgID)
-	c.connector.Done(ID, pid)
+	c.connector.Done(msgID, pid)
 }
 
 func (c *pmService) emitMessageChange(status entity.Status, msgID string) {
@@ -263,6 +217,19 @@ func (c *pmService) emitMessageChange(status entity.Status, msgID string) {
 	c.emitters.evtMessageStatusChanged.Emit(*ev)
 }
 
+func (c *pmService) onConnected(pid peer.ID) {
+	msgs := c.outbox.pop(pid)
+	go func(msgs []*entity.Envelop) {
+		for _, val := range msgs {
+			err := c.send(pid, val.Proto())
+			if err != nil {
+				c.outbox.put(pid, val)
+			}
+		}
+	}(msgs)
+
+}
+
 type pmsNotifiee pmService
 
 func (pm *pmsNotifiee) pmService() *pmService {
@@ -273,15 +240,5 @@ func (pm *pmsNotifiee) Listen(network.Network, ma.Multiaddr)       {}
 func (pm *pmsNotifiee) ListenClose(network.Network, ma.Multiaddr)  {}
 func (pm *pmsNotifiee) Disconnected(network.Network, network.Conn) {}
 func (pm *pmsNotifiee) Connected(n network.Network, c network.Conn) {
-	log.Debug("connected")
-	pm.mux.Lock()
-	msgs, ok := pm.outbox[c.RemotePeer()]
-	log.Debugf("have %s messages", len(msgs))
-	delete(pm.outbox, c.RemotePeer())
-	pm.mux.Unlock()
-	if ok {
-		for _, val := range msgs {
-			go pm.pmService().sendWithBackoff(context.Background(), c.RemotePeer(), val)
-		}
-	}
+	pm.pmService().onConnected(c.RemotePeer())
 }

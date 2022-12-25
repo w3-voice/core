@@ -110,7 +110,7 @@ func (m *Messenger) Start() {
 			if meg.Validate(&evt) {
 				evt, _ := meg.Parse(&evt)
 				log.Debugf("MessagingEvent received %s", evt)
-				if *evt.Action() == entity.Sent {
+				if *evt.Action() == entity.Sent || *evt.Action() == entity.Failed {
 					m.updateMessageStatus(*evt.Payload(), *evt.Action())
 				}
 			}

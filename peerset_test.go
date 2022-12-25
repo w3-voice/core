@@ -25,40 +25,64 @@ func TestPeerSet(t *testing.T) {
 
 	// test add and remove and all done
 	needed.Add("t1", peers[0])
-	require.False(t, needed.empty())
+	require.False(t, needed.Empty())
 	needed.Add("t1", peers[0])
-	require.False(t, needed.empty())
+	require.False(t, needed.Empty())
 	needed.Remove("t1", peers[0].ID)
-	require.False(t, needed.empty())
+	require.False(t, needed.Empty())
 	needed.Remove("t1", peers[0].ID)
-	require.True(t, needed.empty())
+	require.True(t, needed.Empty())
 
 	// test turn and done
 	needed.Add("t1", peers[0])
-	turn := needed.turn(time.Now())
+	turn := needed.Turn(time.Now())
 	require.Exactly(t, peers[0], turn[0])
-	turn = needed.turn(time.Now())
+	turn = needed.Turn(time.Now())
 	require.Empty(t, turn)
-	require.False(t, needed.empty())
-	needed.done(peers[0].ID)
-	turn = needed.turn(time.Now())
+	require.False(t, needed.Empty())
+	needed.Done(peers[0].ID)
+	turn = needed.Turn(time.Now())
 	require.Empty(t, turn)
 	needed.Remove("t1", peers[0].ID)
-	require.True(t, needed.empty())
-	
+	require.True(t, needed.Empty())
+
 	// test force
 	needed.Add("t1", peers[0])
-	needed.force(peers[0].ID)
-	turn = needed.turn(time.Now())
+	needed.Force(peers[0].ID)
+	turn = needed.Turn(time.Now())
 	require.Empty(t, turn)
 	needed.Remove("t1", peers[0].ID)
-	require.True(t, needed.empty())
-	
+	require.True(t, needed.Empty())
+
 	// test fail
 	needed.Add("t1", peers[0])
-	needed.force(peers[0].ID)
-	needed.fail(peers[0].ID)
-	require.Empty(t, needed.turn(time.Now()))
-	require.Eventually(t, func() bool {return len(needed.turn(time.Now())) != 0},5*time.Second,1*time.Second)
-	require.Empty(t, needed.turn(time.Now()))
+	needed.Force(peers[0].ID)
+	needed.Failed(peers[0].ID)
+	require.Empty(t, needed.Turn(time.Now()))
+	require.Eventually(t, func() bool { return len(needed.Turn(time.Now())) != 0 }, 10*time.Second, 1*time.Second)
+	require.Empty(t, needed.Turn(time.Now()))
+	needed.Remove("t1", peers[0].ID)
+	require.True(t, needed.Empty())
+
+	// test counter
+	needed.Add("t1", peers[0])
+	require.False(t, needed.Empty())
+	needed.Add("t1", peers[0])
+	require.False(t, needed.Empty())
+	needed.Remove("t1", peers[0].ID)
+	require.False(t, needed.Empty())
+	needed.Remove("t1", peers[0].ID)
+	require.True(t, needed.Empty())
+	needed.Remove("t1", peers[0].ID)
+	// needed.Remove("t1", peers[0].ID)
+}
+
+func TestPeerSetRemove(t *testing.T) {
+	needed := NewPeerSet()
+	peers := getPeers(5)
+	needed.Add("t1", peers[0])
+	require.False(t, needed.Empty())
+	needed.Remove("t1", peers[0].ID)
+	needed.Remove("t1", peers[0].ID)
+	// needed.Remove("t1", peers[0].ID)
 }
