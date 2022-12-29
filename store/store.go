@@ -152,3 +152,7 @@ func (s *Store) GetIdentity() (BHIdentity, error) {
 	}
 	return res, err
 }
+
+func (s *Store) Close() {
+	s.bh.Close()
+}

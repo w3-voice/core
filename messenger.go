@@ -325,6 +325,7 @@ func (m *Messenger) EventBus() lpevt.Bus {
 }
 
 func (m *Messenger) Stop() {
+	m.store.Close()
 	m.pms.Stop()
 	m.Host.Close()
 }
