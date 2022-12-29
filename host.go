@@ -20,10 +20,10 @@ import (
 )
 
 var BootstrapNodes = []string{
-	"/ip4/45.90.74.114/tcp/4001/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
-	"/ip4/45.90.74.114/udp/4001/quic/p2p/12D3KooWPjwysxEgUrHWxFdPc2rBCogQ6Hdm1hDysaCG7KQi1QvF",
-	"/ip4/194.5.178.130/tcp/4001/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
-	"/ip4/194.5.178.130/udp/4001/quic/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
+	"/dns/2ir.hoodchat.info/tcp/4001/p2p/12D3KooWL8o7oc961jtnEkEPsDkpoqVSV1FKmfH6q4am2jnfexmX",
+	"/dns/2ir.hoodchat.info/udp/4001/quic/p2p/12D3KooWL8o7oc961jtnEkEPsDkpoqVSV1FKmfH6q4am2jnfexmX",
+	"/dns/ir.hoodchat.info/tcp/4001/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
+	"/dns/ir.hoodchat.info/udp/4001/quic/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
 }
 
 type HostBuilder interface {
@@ -48,10 +48,6 @@ func (opt *Option) SetIdentity(identity *entity.Identity) error {
 }
 
 func DefaultOption() Option {
-	// Now, normally you do not just want a simple host, you want
-	// that is fully configured to best support your p2p application.
-	// Let's create a second host setting some more options.
-	// Set your own keypair
 
 	con, err := connmgr.NewConnManager(10, 100)
 	if err != nil {
@@ -61,24 +57,9 @@ func DefaultOption() Option {
 	opt := []libp2p.Option{
 		libp2p.DefaultTransports,
 		libp2p.DefaultSecurity,
-		// Use the keypair we generated
-		// Multiple listen addresses
 		libp2p.DefaultListenAddrs,
-		// Let's prevent our peer from having too many
-		// connections by attaching a connection manager.
 		libp2p.ConnectionManager(con),
-		// libp2p.DefaultMuxers,
-		// Let this host use relays and advertise itself on relays if
-		// it finds it is behind NAT. Use libp2p.Relay(options...) to
-		// enable active relays and more.
-		// libp2p.EnableAutoRelay(),
 		libp2p.EnableAutoRelay(autorelay.WithDefaultStaticRelays()),
-		// If you want to help other peers to figure out if they are behind
-		// NATs, you can launch the server-side of AutoNAT too (AutoRelay
-		// already runs the client)
-		//
-		// This service is highly rate-limited and should not cause any
-		// performance issues.
 		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
@@ -113,7 +94,7 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 		return nil, err
 	}
 	btconf := bootstrap.BootstrapConfigWithPeers(bts)
-	btconf.MinPeerThreshold = 2
+	btconf.MinPeerThreshold = 1
 
 	// connect to the chosen ipfs nodes
 	_, err = bootstrap.Bootstrap(ID, basicHost, kDht, btconf)
