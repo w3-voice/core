@@ -24,12 +24,12 @@ type Messenger struct {
 	store    *store.Store
 	identity entity.Identity
 	pms      PMService
-	hb       HostBuilder
+	hb       Builder
 	opt      Option
 	bus      lpevt.Bus
 }
 
-func MessengerBuilder(path string, opt Option, hb HostBuilder) Messenger {
+func MessengerBuilder(path string, opt Option, hb Builder) Messenger {
 	if hb == nil {
 		hb = DefaultRoutedHost{}
 	}
