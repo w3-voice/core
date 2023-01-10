@@ -48,7 +48,10 @@ func (opt *Option) SetIdentity(identity *entity.Identity) error {
 }
 
 func DefaultOption() Option {
-
+	bts, err := ParseBootstrapPeers(BootstrapNodes)
+	if err != nil {
+		panic(err)
+	}
 	con, err := connmgr.NewConnManager(10, 100)
 	if err != nil {
 		panic(err)
@@ -59,7 +62,7 @@ func DefaultOption() Option {
 		libp2p.DefaultSecurity,
 		libp2p.DefaultListenAddrs,
 		libp2p.ConnectionManager(con),
-		libp2p.EnableAutoRelay(autorelay.WithDefaultStaticRelays()),
+		libp2p.EnableAutoRelay(autorelay.WithStaticRelays(bts)),
 		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
