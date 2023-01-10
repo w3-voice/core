@@ -30,7 +30,7 @@ type PeerSet struct {
 
 func NewPeerSet() *PeerSet {
 	ps := &PeerSet{}
-	ps.bfk = bf.NewExponentialBackoff(5*time.Second, time.Minute*1, bf.NoJitter, time.Second, 1.5, -time.Millisecond*400, rand.NewSource(0))
+	ps.bfk = bf.NewPolynomialBackoff(time.Second, time.Minute*2, bf.NoJitter, time.Second, []float64{0.5, 2, 2.5}, rand.NewSource(0))
 	ps.set = make(map[peer.ID]*Info)
 	ps.mux = sync.Mutex{}
 	return ps
