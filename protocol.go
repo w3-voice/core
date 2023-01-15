@@ -127,11 +127,19 @@ func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop
 			c.failed(m.Proto().Id, peer.ID(m.To.ID))
 		case nvlp := <-nvlpCh:
 			h := c.host
+
 			pi, err := nvlp.To.AdderInfo()
 			if err != nil {
 				continue
 			}
 
+			// hack to use relay v1
+			h.Peerstore().AddAddrs(pi.ID,
+				[]ma.Multiaddr{
+					ma.StringCast("/p2p/" + "12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9" + "/p2p-circuit/p2p/" + nvlp.To.ID.String()),
+					ma.StringCast("/p2p/" + "12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9" + "/p2p-circuit/p2p/" + nvlp.To.ID.String()),
+				},
+				time.Minute*5)
 			if pi.ID == c.host.ID() || pi.ID == "" {
 				continue
 			}

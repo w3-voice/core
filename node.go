@@ -20,10 +20,19 @@ import (
 )
 
 var BootstrapNodes = []string{
-	"/dns/2ir.hoodchat.info/tcp/4001/p2p/12D3KooWL8o7oc961jtnEkEPsDkpoqVSV1FKmfH6q4am2jnfexmX",
-	"/dns/2ir.hoodchat.info/udp/4001/quic-v1/p2p/12D3KooWL8o7oc961jtnEkEPsDkpoqVSV1FKmfH6q4am2jnfexmX",
-	"/dns/ir.hoodchat.info/tcp/4001/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
-	"/dns/ir.hoodchat.info/udp/4001/quic-v1/p2p/12D3KooWA5VK6oL1vJXpuHiBCufoeua9iRwoWH84UwkXAzGRi1qZ",
+	"/ip4/194.5.178.130/tcp/4002/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+	"/ip6/2a01:4f8:160:33c5:250:56ff:fe94:dedc/tcp/4002/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+	"/ip4/194.5.178.130/udp/4002/quic/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+	"/ip6/2a01:4f8:160:33c5:250:56ff:fe94:dedc/udp/4002/quic/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+	"/ip4/194.5.178.130/udp/4002/quic-v1/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+	"/ip6/2a01:4f8:160:33c5:250:56ff:fe94:dedc/udp/4002/quic-v1/p2p/12D3KooWK5ok6gr6L5SVuaAtme3HfUWW4YYm4AAsqUYfZeonKM1C",
+}
+
+var StaticRelays = []string{
+	"/ip6/2a01:4f8:160:33c5:250:56ff:fe94:dedc/udp/4001/quic/p2p/12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9",
+	"/ip4/194.5.178.130/tcp/4001/p2p/12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9",
+	"/ip6/2a01:4f8:160:33c5:250:56ff:fe94:dedc/tcp/4001/p2p/12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9",
+	"/ip4/194.5.178.130/udp/4001/quic/p2p/12D3KooWBFpA7pCMBySBqtduBVkakVQ3bmmaeagB83WHoruBN9s9",
 }
 
 type Builder interface {
@@ -48,7 +57,7 @@ func (opt *Option) SetIdentity(identity *entity.Identity) error {
 }
 
 func DefaultOption() Option {
-	bts, err := ParseBootstrapPeers(BootstrapNodes)
+	bts, err := ParseBootstrapPeers(StaticRelays)
 	if err != nil {
 		panic(err)
 	}
@@ -62,9 +71,8 @@ func DefaultOption() Option {
 		libp2p.DefaultSecurity,
 		libp2p.DefaultListenAddrs,
 		libp2p.ConnectionManager(con),
-		libp2p.EnableAutoRelay(autorelay.WithStaticRelays(bts)),
+		libp2p.EnableAutoRelay(autorelay.WithCircuitV1Support(),autorelay.WithStaticRelays(bts)),
 		libp2p.EnableNATService(),
-		libp2p.EnableHolePunching(),
 	}
 	return Option{
 		LpOpt: opt,
@@ -80,19 +88,14 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	// sw,err := swarm.NewSwarm(basicHost.ID(),basicHost.Peerstore(),swarm.WithDialTimeout(1*time.Minute))
-	// if err != nil {
-	// 	return nil, err
-	// }
 
-	basicHost.Network()
 	// Construct a datastore (needed by the DHT). This is just a simple, in-memory thread-safe datastore.
 	dstore := dsync.MutexWrap(ds.NewMapDatastore())
 
 	// Make the DHT
 	kDht := dht.NewDHT(context.Background(), basicHost, dstore)
 
-	bts, err := ParseBootstrapPeers(BootstrapNodes)
+	bts, err := ParseBootstrapPeers(append(BootstrapNodes, StaticRelays...))
 	if err != nil {
 		return nil, err
 	}
