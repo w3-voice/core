@@ -84,6 +84,7 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 			ID:      entity.ID(val.ID),
 			Name:    val.Name,
 			Members: members,
+			Type: val.Type,
 		})
 	}
 	return ci, nil
@@ -106,6 +107,7 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 		ID:      entity.ID(ct.ID),
 		Name:    ct.Name,
 		Members: members,
+		Type:    ct.Type,
 	}, nil
 }
 
@@ -118,6 +120,7 @@ func (c ChatRepo) Add(chat entity.ChatInfo) error {
 		ID:      string(chat.ID),
 		Name:    chat.Name,
 		Members: m,
+		Type:    chat.Type,
 	}
 	err := c.store.InsertChat(ci)
 	if err != nil {

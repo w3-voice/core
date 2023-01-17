@@ -62,11 +62,11 @@ func (c *Chat) New(opt ChatOpt) (entity.ChatInfo, error) {
 		if err != nil {
 			return entity.ChatInfo{}, err
 		}
-		chat := entity.ChatInfo{chatID, con.Name, []entity.Contact{*me.ToContact(), con}, opt.Type}
+		chat := entity.ChatInfo{ID: chatID, Name: con.Name, Members: []entity.Contact{*me.ToContact(), con}, Type: opt.Type}
 		err = c.chRepo.Add(chat)
 		return chat, err
 	}
-	return entity.ChatInfo{}, errors.New("Type not supported")
+	return entity.ChatInfo{}, errors.New("type not supported")
 }
 
 func (c *Chat) Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {

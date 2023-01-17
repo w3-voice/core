@@ -143,5 +143,5 @@ type ChatInfo struct {
 	ID          ID
 	Name        string
 	Members     []Contact
-	ChatType    ChatType
+	Type    ChatType
 }

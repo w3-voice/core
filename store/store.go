@@ -25,6 +25,7 @@ type BHChat struct {
 	Name    string
 	ID      string `badgerhold:"unique"`
 	Members []string
+	Type    entity.ChatType
 }
 
 type BHTextMessage struct {
