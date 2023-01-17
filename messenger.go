@@ -26,7 +26,7 @@ type Messenger struct {
 	bus      Bus
 }
 
-func MessengerBuilder(path string, opt Option, hb Builder) Messenger {
+func NewMessengerAPI(path string, opt Option, hb Builder) MessengerAPI {
 	if hb == nil {
 		hb = DefaultRoutedHost{}
 	}
@@ -49,10 +49,10 @@ func MessengerBuilder(path string, opt Option, hb Builder) Messenger {
 	identity := NewIdentityAPI(s)
 	msgr.identity = identity
 	if !identity.IsLogin() {
-		return msgr
+		return &msgr
 	}
 	msgr.Start()
-	return msgr
+	return &msgr
 }
 
 func (m *Messenger) Start() {
