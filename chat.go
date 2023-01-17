@@ -97,7 +97,7 @@ func (c *Chat) Find(opt ChatOpt) ([]entity.ChatInfo, error) {
 		chat, err := c.chRepo.GetByID(chatID)
 		return []entity.ChatInfo{chat}, err
 	}
-	return nil, errors.New("Type not supported")
+	return nil, errors.New("type not supported")
 }
 
 func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
