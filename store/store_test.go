@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/store"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +111,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix(),
 			Text:      "asdf cbdgf",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 		{
 			ID:     "2",
@@ -121,7 +122,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix() - 100,
 			Text:      "123 123 345",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 		{
 			ID:     "3",
@@ -132,7 +133,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix(),
 			Text:      "asdrytxcv 567567",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 		{
 			ID:     "4",
@@ -143,7 +144,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix() - 100,
 			Text:      "x.zcvm,dlfkjgerotiu ",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 	}
 	for _, val := range test_msg {
