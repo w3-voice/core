@@ -189,7 +189,7 @@ func TestChat(t *testing.T) {
 		d, err := rmsg.GetByID(entity.ID(chat0[0].ID))
 		require.NoError(t, err)
 		d.Status = entity.Seen
-		rmsg.Set(d)
+		rmsg.Put(d)
 	}()
 	time.Sleep(1 * time.Second)
 	res_msg, err = rmsg.GetAll(b)
@@ -207,7 +207,7 @@ func TestIdentity(t *testing.T) {
 	_, err = chrepo.Get()
 	require.Error(t, err)
 
-	err = chrepo.Set(entity.Identity{ID: "123", Name: "farhoud", PrivKey: "mykey"})
+	err = chrepo.Put(entity.Identity{ID: "123", Name: "farhoud", PrivKey: "mykey"})
 	require.NoError(t, err)
 
 	id, err := chrepo.Get()
