@@ -87,6 +87,9 @@ func TestChat(t *testing.T) {
 				ID:   "2",
 				Name: "red",
 			}},
+		Type:       entity.Private,
+		Unread:     1,
+		LatestText: "123 123 345",
 	}
 	chatinfo1 := entity.ChatInfo{
 		ID:   "2",
@@ -100,6 +103,9 @@ func TestChat(t *testing.T) {
 				ID:   "3",
 				Name: "blue",
 			}},
+		Type:       entity.Private,
+		Unread:     0,
+		LatestText: "234vbxvb cvdfrg ",
 	}
 
 	chat0 := []entity.Message{
@@ -121,9 +127,9 @@ func TestChat(t *testing.T) {
 				ID:   "2",
 				Name: "red",
 			},
-			CreatedAt: time.Now().UTC().Unix(),
+			CreatedAt: time.Now().UTC().Unix() + 20,
 			Text:      "123 123 345",
-			Status:    entity.Pending,
+			Status:    entity.Received,
 		},
 	}
 
@@ -135,7 +141,7 @@ func TestChat(t *testing.T) {
 				ID:   "3",
 				Name: "blue",
 			},
-			CreatedAt: time.Now().UTC().Unix(),
+			CreatedAt: time.Now().UTC().Unix() + 20,
 			Text:      "234vbxvb cvdfrg ",
 			Status:    entity.Pending,
 		},
@@ -179,22 +185,22 @@ func TestChat(t *testing.T) {
 	if !reflect.DeepEqual(res2, chatinfo0) {
 		t.Error("in and out are not equal")
 	}
-	b.AddFilter("chatID", string(res2.ID))
+	b.AddFilter("ChatID", string(res2.ID))
 	res_msg, err := rmsg.GetAll(b)
 	require.NoError(t, err)
 	require.Equal(t, len(res_msg), len(chat1))
-	t.Logf("result %v", res2)
-	t.Logf("expected %v", chatinfo0)
-	go func() {
-		d, err := rmsg.GetByID(entity.ID(chat0[0].ID))
-		require.NoError(t, err)
-		d.Status = entity.Seen
-		rmsg.Put(d)
-	}()
-	time.Sleep(1 * time.Second)
 	res_msg, err = rmsg.GetAll(b)
 	require.NoError(t, err)
 	require.Equal(t, len(res_msg), len(chat0))
+
+	// Test Status filter
+	opt := repo.NewOption(0, 50)
+	opt.AddFilter("ChatID", "1")
+	opt.AddFilter("Status",[]entity.Status{entity.Received})
+	msgs, err := rmsg.GetAll(opt)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(msgs))
+
 }
 
 func TestIdentity(t *testing.T) {

@@ -72,6 +72,14 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 	}
 	ci := make([]entity.ChatInfo, 0)
 	for _, val := range chl {
+		unread, err := c.store.ChatUnreadCount(val.ID);if err != nil {unread = 0}
+
+		latestText := ""
+		latestMsg, err := c.store.ChatMessages(val.ID,0,1);
+		if err == nil && len(latestMsg) > 0 {
+			latestText = latestMsg[0].Text
+		}
+
 		members := make([]entity.Contact, 0)
 		m, _ := c.store.ContactByIDs(val.Members)
 		for _, me := range m {
@@ -85,6 +93,8 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 			Name:    val.Name,
 			Members: members,
 			Type: val.Type,
+			Unread: unread,
+			LatestText: latestText,
 		})
 	}
 	return ci, nil
@@ -95,6 +105,14 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 	if err != nil {
 		return entity.ChatInfo{}, err
 	}
+	unread, err := c.store.ChatUnreadCount(string(id));if err != nil {unread = 0}
+
+	latestText := ""
+	latestMsg, err := c.store.ChatMessages(id.String(),0,1);
+	if err == nil && len(latestMsg) > 0 {
+		latestText = latestMsg[0].Text
+	}
+
 	members := make([]entity.Contact, 0)
 	m, _ := c.store.ContactByIDs(ct.Members)
 	for _, me := range m {
@@ -108,6 +126,8 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 		Name:    ct.Name,
 		Members: members,
 		Type:    ct.Type,
+		Unread: unread,
+		LatestText: latestText,
 	}, nil
 }
 
@@ -193,11 +213,11 @@ func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
 }
 func (m MessageRepo) GetAll(opt IOption) ([]entity.Message, error) {
 	messages := make([]entity.Message, 0)
-	chID, pres := opt.Filters()["chatID"].(string)
+	chID, pres := opt.Filters()["ChatID"].(string)
 	if !pres {
 		return nil, ErrNotSupported
 	}
-	status, _ := opt.Filters()["status"].([]entity.Status)
+	status, _ := opt.Filters()["Status"].([]entity.Status)
 	bhm, err := m.store.ChatMessages(string(chID), opt.Skip(), opt.Limit(), status...)
 	if err != nil {
 		return nil, err
