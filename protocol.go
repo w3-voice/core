@@ -77,6 +77,13 @@ func newPMService(h host.Host, ebus lpevent.Bus) PMService {
 	pms.outbox = newOutBox()
 	pms.backoff = bf.NewPolynomialBackoff(time.Second*5, time.Second*10, bf.NoJitter, time.Second, []float64{5, 7, 10}, rand.NewSource(0))
 	pms.connector = NewConnector(h)
+	// set static relay as needed connection
+	relayInfo, err  := peer.AddrInfoFromString(StaticRelays[0])
+	if err != nil {
+		panic("failed to create message service: "+ err.Error())
+	}
+	relayInfo.Addrs = []ma.Multiaddr{}
+	pms.connector.Need(ServiceName, *relayInfo)
 	pms.host.Network().Notify((*pmsNotifiee)(pms))
 	go pms.background(context.Background(), pms.nvlpCh)
 	return pms

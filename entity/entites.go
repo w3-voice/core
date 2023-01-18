@@ -12,6 +12,7 @@ import (
 )
 
 type Status int
+type ChatType int
 type ID string
 
 func (id ID) String() string {
@@ -24,6 +25,10 @@ const (
 	Seen
 	Received
 	Failed
+)
+
+const (
+	Private ChatType = iota
 )
 
 type Identity struct {
@@ -44,7 +49,7 @@ func (i *Identity) DecodePrivateKey(passphrase string) (ic.PrivKey, error) {
 	return ic.UnmarshalPrivateKey(pkb)
 }
 
-func (i *Identity) Me() *Contact {
+func (i *Identity) ToContact() *Contact {
 	return &Contact{
 		ID: i.ID,
 		Name: i.Name,
@@ -135,7 +140,10 @@ func (n Envelop) Proto() *pb.Message {
 
 
 type ChatInfo struct {
-	ID      ID
-	Name    string
-	Members []Contact
+	ID          ID
+	Name        string
+	Members     []Contact
+	Type        ChatType
+	Unread      uint64
+	LatestText  string
 }

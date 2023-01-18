@@ -13,7 +13,7 @@ func getPeers(n int) []peer.AddrInfo {
 	peers := make([]peer.AddrInfo, 0)
 	for i := 0; i < n; i++ {
 		p, _ := entity.CreateIdentity("asd")
-		a, _ := p.Me().AdderInfo()
+		a, _ := p.ToContact().AdderInfo()
 		peers = append(peers, *a)
 	}
 	return peers

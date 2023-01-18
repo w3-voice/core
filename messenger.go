@@ -1,35 +1,32 @@
 package core
 
 import (
-	"sort"
-	"strings"
-	"time"
-
-	"github.com/google/uuid"
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
-	"github.com/hood-chat/core/repo"
 	"github.com/hood-chat/core/store"
 	logging "github.com/ipfs/go-log/v2"
-	lpevt "github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 )
 
 var log = logging.Logger("msgr-core")
 
+var _ MessengerAPI = (*Messenger)(nil)
+
 type Messenger struct {
 	Host     host.Host
 	store    *store.Store
-	identity entity.Identity
+	identity IdentityAPI
+	book     ContactBookAPI
 	pms      PMService
+	chat     ChatAPI
 	hb       Builder
 	opt      Option
-	bus      lpevt.Bus
+	bus      Bus
 }
 
-func MessengerBuilder(path string, opt Option, hb Builder) Messenger {
+func NewMessengerAPI(path string, opt Option, hb Builder) MessengerAPI {
 	if hb == nil {
 		hb = DefaultRoutedHost{}
 	}
@@ -48,41 +45,29 @@ func MessengerBuilder(path string, opt Option, hb Builder) Messenger {
 		panic(err)
 	}
 	msgr.store = s
-	rIdentity := repo.NewIdentityRepo(s)
-	id, err := rIdentity.Get()
-	if err != nil {
-		return msgr
+	msgr.book = NewContactBook(s)
+	identity := NewIdentityAPI(s)
+	msgr.identity = identity
+	if !identity.IsLogin() {
+		return &msgr
 	}
-	msgr.identity = id
-
 	msgr.Start()
-	return msgr
-}
-
-func (m Messenger) getContactRepo() repo.IRepo[entity.Contact] {
-	return repo.NewContactRepo(m.store)
-}
-
-func (m Messenger) getIdentityRepo() repo.IRepo[entity.Identity] {
-	return repo.NewIdentityRepo(m.store)
-}
-
-func (m Messenger) getChatRepo() repo.IRepo[entity.ChatInfo] {
-	return repo.NewChatRepo(m.store)
-}
-
-func (m Messenger) getMessageRepo() repo.IRepo[entity.Message] {
-	return repo.NewMessageRepo(m.store)
+	return &msgr
 }
 
 func (m *Messenger) Start() {
-	m.opt.SetIdentity(&m.identity)
+	id, err := m.identity.Get()
+	if err != nil {
+		panic(err)
+	}
+	m.opt.SetIdentity(&id)
 	h, err := m.hb.Create(m.opt)
 	if err != nil {
 		panic(err)
 	}
 	m.Host = h
 	m.pms = NewPMService(h, m.bus)
+	m.chat = NewChatAPI(m.store, m.book, m.pms, m.identity)
 
 	sub, err := m.bus.Subscribe(new(event.EvtMessageReceived))
 	if err != nil {
@@ -94,7 +79,7 @@ func (m *Messenger) Start() {
 			log.Debug("EvtMessageReceived received")
 			msg := e.(event.EvtMessageReceived).Msg
 			log.Debugf("EvtMessageReceived received %s", msg)
-			m.MessageHandler(msg)
+			m.messageHandler(msg)
 		}
 	}()
 	subStaus, err := m.bus.Subscribe(new(event.EvtObject))
@@ -111,216 +96,38 @@ func (m *Messenger) Start() {
 				evt, _ := meg.Parse(&evt)
 				log.Debugf("MessagingEvent received %s", evt)
 				if *evt.Action() == entity.Sent || *evt.Action() == entity.Failed {
-					m.updateMessageStatus(*evt.Payload(), *evt.Action())
+					m.chat.updateMessageStatus(*evt.Payload(), *evt.Action())
 				}
 			}
-
 		}
 	}()
 }
 
-func (m *Messenger) IsLogin() bool {
-	rIdentity := m.getIdentityRepo()
-	_, err := rIdentity.Get()
-	return err == nil
-}
-
-func (m *Messenger) SignUp(name string) (*entity.Identity, error) {
-	rIdentity := m.getIdentityRepo()
-	iden, err := entity.CreateIdentity(name)
+func (m *Messenger) messageHandler(msg *pb.Message) {
+	err := m.chat.received(msg)
 	if err != nil {
-		return nil, err
-	}
-	err = rIdentity.Set(iden)
-	m.identity = iden
-	if err != nil {
-		return nil, err
-	}
-	m.Start()
-	return &iden, nil
-}
-
-func (m *Messenger) GetIdentity() (entity.Identity, error) {
-	return m.identity, nil
-}
-
-func (m *Messenger) GetContacts(skip int, limit int) ([]entity.Contact, error) {
-	rContact := m.getContactRepo()
-	opt := repo.NewOption(skip, limit)
-	return rContact.GetAll(opt)
-}
-
-func (m *Messenger) GetContact(id entity.ID) (entity.Contact, error) {
-	rContact := m.getContactRepo()
-	return rContact.GetByID(id)
-}
-
-func (m *Messenger) AddContact(c entity.Contact) error {
-	rContact := m.getContactRepo()
-	return rContact.Add(c)
-}
-
-func (m *Messenger) GetChat(id entity.ID) (entity.ChatInfo, error) {
-	rChat := m.getChatRepo()
-	ci := entity.ChatInfo{}
-	c, err := rChat.GetByID(id)
-	if err != nil {
-		return ci, err
-	}
-	return c, nil
-}
-
-func (m *Messenger) GetChats(skip int, limit int) ([]entity.ChatInfo, error) {
-	rChat := repo.NewChatRepo(m.store)
-	opt := repo.NewOption(skip, limit)
-	return rChat.GetAll(opt)
-}
-
-func (m *Messenger) CreatePMChat(contactID entity.ID) (entity.ChatInfo, error) {
-	c, err := m.GetContact(contactID)
-	chatID := m.generatePMChatID(c)
-	if err != nil {
-		return entity.ChatInfo{}, err
-	}
-	chat := m.CreateChat(chatID, []entity.Contact{*m.identity.Me(), c}, c.Name)
-	err = m.getChatRepo().Add(chat)
-	return chat, err
-}
-
-func (m *Messenger) GetPMChat(contactID entity.ID) (entity.ChatInfo, error) {
-	c, err := m.GetContact(contactID)
-	chatID := m.generatePMChatID(c)
-	if err != nil {
-		return entity.ChatInfo{}, err
-	}
-	chat, err := m.getChatRepo().GetByID(chatID)
-	return chat, err
-}
-
-func (m *Messenger) CreateChat(id entity.ID, members []entity.Contact, name string) entity.ChatInfo {
-	return entity.ChatInfo{
-		ID:      entity.ID(id),
-		Name:    name,
-		Members: members,
-	}
-}
-
-func (m *Messenger) MessageHandler(msg *pb.Message) {
-	mAuthorID := entity.ID(msg.Author.Id)
-	msgID := entity.ID(msg.GetId())
-	chatID := entity.ID(msg.ChatId)
-	rCon := m.getContactRepo()
-	con, err := rCon.GetByID(mAuthorID)
-	if err != nil {
-		log.Errorf("fail to get contact %s", err.Error())
-		con = entity.Contact{
-			ID:   mAuthorID,
-			Name: msg.Author.Name,
-		}
-		err := rCon.Add(con)
-		if err != nil {
-			log.Errorf("fail to add contact %s", err.Error())
-			return
-		}
-	}
-
-	rchat := m.getChatRepo()
-	chat, err := rchat.GetByID(entity.ID(msg.GetChatId()))
-
-	if err != nil {
-		log.Errorf("can not find chat %s", err.Error())
-		chat = m.CreateChat(chatID, []entity.Contact{*m.identity.Me(), con}, msg.Author.Name)
-		err := rchat.Add(chat)
-		if err != nil {
-			log.Errorf("fail to handle new message %s", err.Error())
-			return
-		}
-	}
-	newMsg := entity.Message{
-		ID:        msgID,
-		ChatID:    chat.ID,
-		CreatedAt: msg.GetCreatedAt(),
-		Text:      msg.GetText(),
-		Status:    entity.Received,
-		Author:    con,
-	}
-	rmsg := m.getMessageRepo()
-	err = rmsg.Add(newMsg)
-	log.Debugf("new message %s ", newMsg)
-	if err != nil {
-		log.Errorf("Can not add message %s , %d", err.Error(), newMsg)
 		return
 	}
-
 	em, _ := m.bus.Emitter(new(event.EvtObject))
 	defer em.Close()
 	evgrp := event.NewMessagingEventGroup()
-	ev, _ := evgrp.Make("ChangeMessageStatus", entity.Received, msgID)
+	ev, _ := evgrp.Make("ChangeMessageStatus", entity.Received, entity.ID(msg.Id))
 	em.Emit(*ev)
 }
 
-func (m *Messenger) SendPM(chatID entity.ID, content string) (*entity.Message, error) {
-	msg := entity.Message{
-		ID:        entity.ID(uuid.New().String()),
-		ChatID:    chatID,
-		CreatedAt: time.Now().UTC().Unix(),
-		Text:      content,
-		Status:    entity.Pending,
-		Author:    *m.identity.Me(),
-	}
-	rmsg := m.getMessageRepo()
-	err := rmsg.Add(msg)
-	if err != nil {
-		log.Errorf("Can not add message %s", err.Error())
-		return nil, err
-	}
-	rchat := m.getChatRepo()
-	chat, err := rchat.GetByID(chatID)
-	if err != nil {
-		log.Errorf("Can not get chat %s", err.Error())
-		return nil, err
-	}
-	for _, to := range chat.Members {
-		if to.ID != msg.Author.ID {
-			log.Debugf("outbox message")
-			m.pms.Send(entity.Envelop{To: to, Message: msg})
-			log.Debugf("outboxed message")
-		}
-	}
-	return &msg, nil
+func (m *Messenger) ContactBookAPI() ContactBookAPI {
+	return m.book
 }
 
-func (m *Messenger) GetMessages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {
-	opt := repo.NewOption(skip, limit)
-	opt.AddFilter("chatID", string(chatID))
-	return m.getMessageRepo().GetAll(opt)
+func (m *Messenger) IdentityAPI() IdentityAPI {
+	return m.identity
 }
 
-func (m *Messenger) GetMessage(ID entity.ID) (entity.Message, error) {
-	return m.getMessageRepo().GetByID(ID)
+func (m *Messenger) ChatAPI() ChatAPI {
+	return m.chat
 }
 
-func (m *Messenger) generatePMChatID(con entity.Contact) entity.ID {
-	cons := []string{con.ID.String(), m.identity.Me().ID.String()}
-	sort.Strings(cons)
-	return entity.ID(strings.Join(cons, ""))
-}
-
-func (m *Messenger) updateMessageStatus(msgID entity.ID, status entity.Status) error {
-	rmsg := m.getMessageRepo()
-	msg, err := rmsg.GetByID(msgID)
-	if err != nil {
-		return err
-	}
-	msg.Status = status
-	err = rmsg.Set(msg)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *Messenger) EventBus() lpevt.Bus {
+func (m *Messenger) EventBus() Bus {
 	return m.bus
 }
 

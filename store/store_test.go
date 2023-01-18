@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/store"
 	"github.com/stretchr/testify/require"
 )
@@ -89,11 +90,13 @@ func TestChat(t *testing.T) {
 			ID:      "1",
 			Name:    "blue",
 			Members: []string{"1", "2"},
+			Type: entity.Private,
 		},
 		{
 			ID:      "2",
 			Name:    "blue",
 			Members: []string{"1", "3"},
+			Type: entity.Private,
 		},
 	}
 	for _, val := range test_chat {
@@ -110,7 +113,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix(),
 			Text:      "asdf cbdgf",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 		{
 			ID:     "2",
@@ -121,7 +124,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix() - 100,
 			Text:      "123 123 345",
-			Status:    store.Pending,
+			Status:    entity.Pending,
 		},
 		{
 			ID:     "3",
@@ -132,7 +135,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix(),
 			Text:      "asdrytxcv 567567",
-			Status:    store.Pending,
+			Status:    entity.Received,
 		},
 		{
 			ID:     "4",
@@ -143,7 +146,7 @@ func TestChat(t *testing.T) {
 			},
 			CreatedAt: time.Now().Unix() - 100,
 			Text:      "x.zcvm,dlfkjgerotiu ",
-			Status:    store.Pending,
+			Status:    entity.Received,
 		},
 	}
 	for _, val := range test_msg {
@@ -163,11 +166,19 @@ func TestChat(t *testing.T) {
 		t.Error("in and out are not equal")
 	}
 
-	res3, err := s.ChatMessages("1", 0, 10)
+	res3, err := s.ChatMessages("1", 0, 0)
 	require.NoError(t, err)
 	if !reflect.DeepEqual(res3, test_msg[:2]) {
 		t.Error("in and out are not equal")
 	}
+
+	// test unread
+	msgs, err := s.ChatMessages("2", 0, 0)
+	require.NoError(t, err)
+	count, err := s.ChatUnreadCount("2")
+	require.NoError(t, err)
+	require.Equal(t, len(msgs), int(count))
+
 	t.Log("result ", res3, test_msg[:2])
 
 }

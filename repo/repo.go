@@ -16,18 +16,18 @@ type IRepo[C any] interface {
 	Get() (C, error)
 	GetByID(id entity.ID) (C, error)
 	GetAll(opt IOption) ([]C, error)
-	Set(C) error
+	Put(C) error
 	Add(C) error
 }
 
 type IOption interface {
 	Skip() int
 	Limit() int
-	AddFilter(field string, value string)
+	AddFilter(field string, value interface{})
 	Filters() Filter
 }
 
-type Filter map[string]string
+type Filter map[string]interface{}
 
 type Option struct {
 	skip    int
@@ -47,7 +47,7 @@ func (o Option) Limit() int {
 	return o.limit
 }
 
-func (o Option) AddFilter(n string, s string) {
+func (o Option) AddFilter(n string, s interface{}) {
 	o.filters[n] = s
 }
 
@@ -72,6 +72,14 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 	}
 	ci := make([]entity.ChatInfo, 0)
 	for _, val := range chl {
+		unread, err := c.store.ChatUnreadCount(val.ID);if err != nil {unread = 0}
+
+		latestText := ""
+		latestMsg, err := c.store.ChatMessages(val.ID,0,1);
+		if err == nil && len(latestMsg) > 0 {
+			latestText = latestMsg[0].Text
+		}
+
 		members := make([]entity.Contact, 0)
 		m, _ := c.store.ContactByIDs(val.Members)
 		for _, me := range m {
@@ -84,6 +92,9 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 			ID:      entity.ID(val.ID),
 			Name:    val.Name,
 			Members: members,
+			Type: val.Type,
+			Unread: unread,
+			LatestText: latestText,
 		})
 	}
 	return ci, nil
@@ -94,6 +105,14 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 	if err != nil {
 		return entity.ChatInfo{}, err
 	}
+	unread, err := c.store.ChatUnreadCount(string(id));if err != nil {unread = 0}
+
+	latestText := ""
+	latestMsg, err := c.store.ChatMessages(id.String(),0,1);
+	if err == nil && len(latestMsg) > 0 {
+		latestText = latestMsg[0].Text
+	}
+
 	members := make([]entity.Contact, 0)
 	m, _ := c.store.ContactByIDs(ct.Members)
 	for _, me := range m {
@@ -106,6 +125,9 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 		ID:      entity.ID(ct.ID),
 		Name:    ct.Name,
 		Members: members,
+		Type:    ct.Type,
+		Unread: unread,
+		LatestText: latestText,
 	}, nil
 }
 
@@ -118,6 +140,7 @@ func (c ChatRepo) Add(chat entity.ChatInfo) error {
 		ID:      string(chat.ID),
 		Name:    chat.Name,
 		Members: m,
+		Type:    chat.Type,
 	}
 	err := c.store.InsertChat(ci)
 	if err != nil {
@@ -126,7 +149,7 @@ func (c ChatRepo) Add(chat entity.ChatInfo) error {
 	return nil
 }
 
-func (c ChatRepo) Set(chat entity.ChatInfo) error {
+func (c ChatRepo) Put(chat entity.ChatInfo) error {
 	return ErrNotImplemented
 }
 
@@ -150,7 +173,7 @@ func (m MessageRepo) Add(msg entity.Message) error {
 		ChatID:    string(msg.ChatID),
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
-		Status:    store.Status(msg.Status),
+		Status:    entity.Status(msg.Status),
 		Author:    store.BHContact{Name: msg.Author.Name, ID: string(msg.Author.ID)},
 	}
 	err := m.store.InsertTextMessage(tmsg)
@@ -159,13 +182,13 @@ func (m MessageRepo) Add(msg entity.Message) error {
 	}
 	return nil
 }
-func (m MessageRepo) Set(msg entity.Message) error {
+func (m MessageRepo) Put(msg entity.Message) error {
 	tmsg := store.BHTextMessage{
 		ID:        string(msg.ID),
 		ChatID:    string(msg.ChatID),
 		CreatedAt: msg.CreatedAt,
 		Text:      msg.Text,
-		Status:    store.Status(msg.Status),
+		Status:    entity.Status(msg.Status),
 		Author:    store.BHContact{Name: msg.Author.Name, ID: string(msg.Author.ID)},
 	}
 	return m.store.UpdateMessage(tmsg)
@@ -190,11 +213,12 @@ func (m MessageRepo) GetByID(id entity.ID) (entity.Message, error) {
 }
 func (m MessageRepo) GetAll(opt IOption) ([]entity.Message, error) {
 	messages := make([]entity.Message, 0)
-	chID, pres := opt.Filters()["chatID"]
+	chID, pres := opt.Filters()["ChatID"].(string)
 	if !pres {
 		return nil, ErrNotSupported
 	}
-	bhm, err := m.store.ChatMessages(string(chID), opt.Skip(), opt.Limit())
+	status, _ := opt.Filters()["Status"].([]entity.Status)
+	bhm, err := m.store.ChatMessages(string(chID), opt.Skip(), opt.Limit(), status...)
 	if err != nil {
 		return nil, err
 	}
@@ -229,18 +253,19 @@ func NewContactRepo(store *store.Store) IRepo[entity.Contact] {
 }
 
 func (c ContactRepo) Add(con entity.Contact) error {
-	err := c.store.InsertContact(store.BHContact{
+	return c.store.InsertContact(store.BHContact{
 		Name: con.Name,
 		ID:   string(con.ID),
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
-func (c ContactRepo) Set(cont entity.Contact) error {
-	return ErrNotImplemented
+
+func (c ContactRepo) Put(con entity.Contact) error {
+	return c.store.PutContact(store.BHContact{
+		Name: con.Name,
+		ID:   string(con.ID),
+	})
 }
+
 func (c ContactRepo) GetByID(id entity.ID) (entity.Contact, error) {
 	con, err := c.store.ContactByID(string(id))
 	if err != nil {
@@ -283,7 +308,7 @@ func NewIdentityRepo(store *store.Store) IRepo[entity.Identity] {
 func (i IdentityRepo) Add(con entity.Identity) error {
 	return ErrNotImplemented
 }
-func (i IdentityRepo) Set(iden entity.Identity) error {
+func (i IdentityRepo) Put(iden entity.Identity) error {
 	err := i.store.SetIdentity(store.BHIdentity{
 		ID:   string(iden.ID),
 		Name: iden.Name,
