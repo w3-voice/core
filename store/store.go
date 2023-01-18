@@ -88,22 +88,37 @@ func (s *Store) InsertChat(ch BHChat) error {
 func (s *Store) ChatList(skip int, limit int) ([]BHChat, error) {
 	var res []BHChat
 	q := &badgerhold.Query{}
-	q.Limit(limit)
-	q.Skip(skip)
+	if skip > 0 && limit > 0 {
+		q.Limit(limit)
+		q.Skip(skip)
+	}
 	err := s.bh.Find(&res, q)
 	return res, err
 }
 
 func (s *Store) ChatMessages(id string, skip int, limit int, statuses ...entity.Status) ([]BHTextMessage, error) {
 	var res []BHTextMessage
-	q := badgerhold.Where("ChatID").Eq(id).SortBy("CreatedAt").Reverse()
+	q := badgerhold.Where("ChatID").Eq(id)
 	if len(statuses) > 0 {
-		q.And("Status").In(statuses)
+		s := make([]interface{},0)
+		for _,val := range statuses {
+			s = append(s, val)
+		}
+		
+		q.And("Status").In(s...)
 	}
-	q.Limit(limit)
-	q.Skip(skip)
+	if skip > 0 && limit > 0 {
+		q.Limit(limit)
+		q.Skip(skip)
+	}
+	q.SortBy("CreatedAt").Reverse()
 	err := s.bh.Find(&res, q)
 	return res, err
+}
+
+func (s *Store) ChatUnreadCount(id string) (uint64, error) {
+	q := badgerhold.Where("ChatID").Eq(id).And("Status").Eq(entity.Received)
+	return s.bh.Count(&BHTextMessage{}, q)
 }
 
 func (s *Store) MsgByID(id string) (BHTextMessage, error) {
@@ -121,8 +136,10 @@ func (s *Store) UpdateMessage(msg BHTextMessage) error {
 func (s *Store) AllContacts(skip int, limit int) ([]BHContact, error) {
 	var res []BHContact
 	q := &badgerhold.Query{}
-	q.Limit(limit)
-	q.Skip(skip)
+	if skip > 0 && limit > 0 {
+		q.Limit(limit)
+		q.Skip(skip)
+	}
 	err := s.bh.Find(&res, q)
 	return res, err
 }
