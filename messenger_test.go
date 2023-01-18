@@ -18,7 +18,7 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 	opt1 := core.DefaultOption()
 	opt2 := core.DefaultOption()
-	mr1 := core.MessengerBuilder(t.TempDir()+"/h1", opt1, core.DefaultRoutedHost{})
+	mr1 := core.NewMessengerAPI(t.TempDir()+"/h1", opt1, core.DefaultRoutedHost{})
 	t.Log("somthing wrong")
 	_, err = mr1.IdentityAPI().SignUp("h1")
 	require.NoError(t, err)
@@ -26,7 +26,7 @@ func TestMessenger(t *testing.T) {
 	t.Log("messenger 1 created")
 	_, err = mr1.IdentityAPI().Get()
 	require.NoError(t, err)
-	mr2 := core.MessengerBuilder(t.TempDir()+"/h2", opt2, core.DefaultRoutedHost{})
+	mr2 := core.NewMessengerAPI(t.TempDir()+"/h2", opt2, core.DefaultRoutedHost{})
 	_, err = mr2.IdentityAPI().SignUp("h2")
 	mr2.Start()
 	require.NoError(t, err)
@@ -56,15 +56,24 @@ func TestMessenger(t *testing.T) {
 	msgs, err := mr2.ChatAPI().Messages(chat1.ID, 0, 20)
 	require.NoError(t, err)
 	t.Logf("list of messages \n %v", msgs)
+	
 	// Test Event hand event handler
 	time.Sleep(10 * time.Second)
 	msgs, err = mr1.ChatAPI().Messages(chat1.ID, 0, 20)
 	require.Equal(t, 2, len(msgs))
+	require.Equal(t, int(chat2.Unread), len(msgs))
 	require.NoError(t, err)
-
 	for _, val := range msgs {
 		require.Equal(t, val.Status, entity.Sent)
 	}
+
+	// Test Seen
+	err = mr2.ChatAPI().Seen(chat1.ID)
+	require.NoError(t, err)
+	chat2, err = mr2.ChatAPI().ChatInfo(chat1.ID)
+	require.NoError(t, err)
+	require.Equal(t, 0, int(chat2.Unread))
+
 
 	mr1.Stop()
 	mr2.Stop()
