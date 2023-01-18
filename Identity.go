@@ -19,7 +19,10 @@ type Identity struct {
 
 func NewIdentityAPI(store *st.Store) IdentityAPI {
 	repo := rp.NewIdentityRepo(store)
-	identity, _ := repo.Get()
+	identity, err := repo.Get()
+	if err != nil {
+		return &Identity{repo, nil}
+	}
 	return &Identity{repo, &identity}
 }
 
