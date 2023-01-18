@@ -71,7 +71,7 @@ func (c *Chat) New(opt ChatOpt) (entity.ChatInfo, error) {
 
 func (c *Chat) Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {
 	opt := rp.NewOption(skip, limit)
-	opt.AddFilter("chatID", string(chatID))
+	opt.AddFilter("ChatID", string(chatID))
 	return c.mRepo.GetAll(opt)
 }
 
@@ -188,9 +188,9 @@ func (c Chat) received(msg *pb.Message) error {
 }
 
 func (c *Chat) Seen(chatID entity.ID) error {
-	opt := rp.NewOption(0, 10000)
-	opt.AddFilter("chatID", string(chatID))
-	opt.AddFilter("status", []entity.Status{entity.Received})
+	opt := rp.NewOption(0, 0)
+	opt.AddFilter("ChatID", string(chatID))
+	opt.AddFilter("Status", []entity.Status{entity.Received})
 	unread, err := c.mRepo.GetAll(opt)
 	if err != nil {
 		return err
