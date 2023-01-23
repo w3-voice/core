@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
@@ -19,11 +21,13 @@ type Messenger struct {
 	store    *store.Store
 	identity IdentityAPI
 	book     ContactBookAPI
-	pms      PMService
+	pms      MessengerService
+	gps      GroupChatService
 	chat     ChatAPI
 	hb       Builder
 	opt      Option
 	bus      Bus
+	connector Connector
 }
 
 func NewMessengerAPI(path string, opt Option, hb Builder) MessengerAPI {
@@ -66,8 +70,21 @@ func (m *Messenger) Start() {
 		panic(err)
 	}
 	m.Host = h
-	m.pms = NewPMService(h, m.bus)
-	m.chat = NewChatAPI(m.store, m.book, m.pms, m.identity)
+	m.connector = NewConnector(h)
+	gpCh := make(chan string)
+	m.pms = NewPMService(h, m.bus, m.connector)
+	m.gps = NewGPService(context.Background(),h,m.IdentityAPI(),m.bus,gpCh,m.connector)
+	m.chat = NewChatAPI(m.store, m.book, m.pms, m.gps,m.identity)
+
+	chats,err := m.chat.ChatInfos(0,0)
+	if err != nil {
+		panic("cant load groups chats")
+	}
+	for _, c := range chats {
+		if c.Type == entity.Group {
+			gpCh <- c.ID.String()
+		}
+	}
 
 	sub, err := m.bus.Subscribe(new(event.EvtMessageReceived))
 	if err != nil {
@@ -76,9 +93,8 @@ func (m *Messenger) Start() {
 	go func() {
 		defer sub.Close()
 		for e := range sub.Out() {
-			log.Debug("EvtMessageReceived received")
 			msg := e.(event.EvtMessageReceived).Msg
-			log.Debugf("EvtMessageReceived received %s", msg)
+			log.Debugf("new message received %v", msg)
 			m.messageHandler(msg)
 		}
 	}()
@@ -89,12 +105,12 @@ func (m *Messenger) Start() {
 	go func() {
 		defer subStaus.Close()
 		for e := range subStaus.Out() {
-			log.Debug("EvtObject received")
+			log.Debug("evtObject received")
 			evt := e.(event.EvtObject)
 			meg := event.NewMessagingEventGroup()
 			if meg.Validate(&evt) {
 				evt, _ := meg.Parse(&evt)
-				log.Debugf("MessagingEvent received %s", evt)
+				log.Debugf("messagingEvent: %v", evt)
 				if *evt.Action() == entity.Sent || *evt.Action() == entity.Failed {
 					m.chat.updateMessageStatus(*evt.Payload(), *evt.Action())
 				}
@@ -110,9 +126,7 @@ func (m *Messenger) messageHandler(msg *pb.Message) {
 	}
 	em, _ := m.bus.Emitter(new(event.EvtObject))
 	defer em.Close()
-	evgrp := event.NewMessagingEventGroup()
-	ev, _ := evgrp.Make("ChangeMessageStatus", entity.Received, entity.ID(msg.Id))
-	em.Emit(*ev)
+	event.EmitMessageChange(em, entity.Received, msg.Id)
 }
 
 func (m *Messenger) ContactBookAPI() ContactBookAPI {

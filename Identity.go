@@ -6,6 +6,7 @@ import (
 	"github.com/hood-chat/core/entity"
 	rp "github.com/hood-chat/core/repo"
 	st "github.com/hood-chat/core/store"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var _ IdentityAPI = (*Identity)(nil)
@@ -49,4 +50,11 @@ func (i *Identity) Get() (entity.Identity, error) {
 		return entity.Identity{}, errors.New("Not Login")
 	}
 	return *i.identity, nil
+}
+
+func (i *Identity) PeerID() (peer.ID, error) {
+	if i.identity==nil {
+		return peer.ID(""), errors.New("Not Login")
+	}
+	return i.identity.PeerID()
 }

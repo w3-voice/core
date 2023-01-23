@@ -81,8 +81,7 @@ func (c ChatRepo) GetAll(opt IOption) ([]entity.ChatInfo, error) {
 		}
 
 		members := make([]entity.Contact, 0)
-		m, _ := c.store.ContactByIDs(val.Members)
-		for _, me := range m {
+		for _, me := range val.Members {
 			members = append(members, entity.Contact{
 				ID:   entity.ID(me.ID),
 				Name: me.Name,
@@ -114,8 +113,7 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 	}
 
 	members := make([]entity.Contact, 0)
-	m, _ := c.store.ContactByIDs(ct.Members)
-	for _, me := range m {
+	for _, me := range ct.Members {
 		members = append(members, entity.Contact{
 			ID:   entity.ID(me.ID),
 			Name: me.Name,
@@ -132,9 +130,9 @@ func (c ChatRepo) GetByID(id entity.ID) (entity.ChatInfo, error) {
 }
 
 func (c ChatRepo) Add(chat entity.ChatInfo) error {
-	m := []string{}
+	m := []store.BHContact{}
 	for _, val := range chat.Members {
-		m = append(m, string(val.ID))
+		m = append(m, store.BHContact{ID: val.ID.String(),Name: val.Name})
 	}
 	ci := store.BHChat{
 		ID:      string(chat.ID),

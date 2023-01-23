@@ -9,7 +9,6 @@ import (
 	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/utils"
-	lpevent "github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 
 	// "github.com/libp2p/go-libp2p/p2p/discovery/backoff"
@@ -34,31 +33,27 @@ const (
 	ConnectTimeout = 30 * time.Second
 )
 
-type PMService interface {
-	Send(entity.Envelop)
-	Handler(str network.Stream)
-	Stop()
-}
+
 
 // NewNATManager creates a NAT manager.
-func NewPMService(h host.Host, ebus lpevent.Bus) PMService {
-	return newPMService(h, ebus)
+func NewPMService(h host.Host, ebus Bus, connector Connector) MessengerService {
+	return newPMService(h, ebus, connector)
 }
 
-type pmService struct {
+type PMService struct {
 	host      host.Host
 	connector Connector
 	backoff   bf.BackoffFactory
 	nvlpCh    chan entity.Envelop
 	outbox    *outbox
 	emitters  struct {
-		evtMessageReceived      lpevent.Emitter
-		evtMessageStatusChanged lpevent.Emitter
+		evtMessageReceived      Emitter
+		evtMessageStatusChanged Emitter
 	}
 }
 
-func newPMService(h host.Host, ebus lpevent.Bus) PMService {
-	pms := &pmService{}
+func newPMService(h host.Host, ebus Bus, connector Connector) MessengerService {
+	pms := &PMService{}
 	var err error
 	pms.emitters.evtMessageStatusChanged, err = ebus.Emitter(new(event.EvtObject), eventbus.Stateful)
 	if err != nil {
@@ -71,12 +66,12 @@ func newPMService(h host.Host, ebus lpevent.Bus) PMService {
 		panic("failed to create message service")
 	}
 	pms.host = h
-	h.SetStreamHandler(ID, pms.Handler)
+	h.SetStreamHandler(ID, pms.handler)
 	log.Debug("service PMS created")
 	pms.nvlpCh = make(chan entity.Envelop)
 	pms.outbox = newOutBox()
 	pms.backoff = bf.NewPolynomialBackoff(time.Second*5, time.Second*10, bf.NoJitter, time.Second, []float64{5, 7, 10}, rand.NewSource(0))
-	pms.connector = NewConnector(h)
+	pms.connector = connector
 	// set static relay as needed connection
 	relayInfo, err  := peer.AddrInfoFromString(StaticRelays[0])
 	if err != nil {
@@ -89,7 +84,7 @@ func newPMService(h host.Host, ebus lpevent.Bus) PMService {
 	return pms
 }
 
-func (c *pmService) send(p peer.ID, pbmsg *pb.Message) error {
+func (c *PMService) send(p peer.ID, pbmsg *pb.Message) error {
 	nctx := network.WithUseTransient(context.Background(), "just a chat")
 	s, err := c.host.NewStream(nctx, p, ID)
 	if err != nil {
@@ -121,17 +116,17 @@ func (c *pmService) send(p peer.ID, pbmsg *pb.Message) error {
 	return nil
 }
 
-func (c *pmService) Send(nvlop entity.Envelop) {
+func (c *PMService) Send(nvlop entity.Envelop) {
 
 	c.nvlpCh <- nvlop
 
 }
 
-func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop) {
+func (c *PMService) background(ctx context.Context, nvlpCh <-chan entity.Envelop) {
 	for {
 		select {
 		case m := <-c.outbox.failed:
-			c.failed(m.Proto().Id, peer.ID(m.To.ID))
+			c.failed(m.Message.Proto().Id, peer.ID(m.To.ID))
 		case nvlp := <-nvlpCh:
 			h := c.host
 
@@ -150,11 +145,11 @@ func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop
 			if pi.ID == c.host.ID() || pi.ID == "" {
 				continue
 			}
-			c.connector.Need(nvlp.Proto().Id, *pi)
+			c.connector.Need(nvlp.Message.Proto().Id, *pi)
 			cns := h.Network().Connectedness(pi.ID)
 			switch cns {
 			case network.Connected:
-				err := c.send(pi.ID, nvlp.Proto())
+				err := c.send(pi.ID, nvlp.Message.Proto())
 				if err != nil {
 					c.outbox.put(pi.ID, &nvlp)
 				}
@@ -169,8 +164,9 @@ func (c *pmService) background(ctx context.Context, nvlpCh <-chan entity.Envelop
 	}
 }
 
-func (c *pmService) Handler(str network.Stream) {
+func (c *PMService) handler(str network.Stream) {
 	log.Debugf("Handler called")
+	defer str.Close()
 	if err := str.Scope().SetService(ServiceName); err != nil {
 		log.Debugf("error attaching stream to ping service: %s", err)
 		str.Reset()
@@ -204,39 +200,30 @@ func (c *pmService) Handler(str network.Stream) {
 		str.Reset()
 		return
 	}
+
 }
 
-func (c *pmService) Stop() {
+func (c *PMService) Stop() {
 	c.host.RemoveStreamHandler(ID)
 	c.emitters.evtMessageReceived.Close()
 	c.emitters.evtMessageStatusChanged.Close()
 }
 
-func (c *pmService) done(msgID string, pid peer.ID) {
-	c.emitMessageChange(entity.Sent, msgID)
+func (c *PMService) done(msgID string, pid peer.ID) {
+	event.EmitMessageChange(c.emitters.evtMessageStatusChanged,entity.Sent, msgID)
 	c.connector.Done(msgID, pid)
 }
 
-func (c *pmService) failed(msgID string, pid peer.ID) {
-	c.emitMessageChange(entity.Failed, msgID)
+func (c *PMService) failed(msgID string, pid peer.ID) {
+	event.EmitMessageChange(c.emitters.evtMessageStatusChanged, entity.Failed, msgID)
 	c.connector.Done(msgID, pid)
 }
 
-func (c *pmService) emitMessageChange(status entity.Status, msgID string) {
-	evgrp := event.NewMessagingEventGroup()
-	ev, err := evgrp.Make("ChangeMessageStatus", status, entity.ID(msgID))
-	if err != nil {
-		log.Errorf("can not create event. reason: %s", err)
-		panic("bus has problem")
-	}
-	c.emitters.evtMessageStatusChanged.Emit(*ev)
-}
-
-func (c *pmService) onConnected(pid peer.ID) {
+func (c *PMService) onConnected(pid peer.ID) {
 	msgs := c.outbox.pop(pid)
 	go func(msgs []*entity.Envelop) {
 		for _, val := range msgs {
-			err := c.send(pid, val.Proto())
+			err := c.send(pid, val.Message.Proto())
 			if err != nil {
 				c.outbox.put(pid, val)
 			}
@@ -245,10 +232,10 @@ func (c *pmService) onConnected(pid peer.ID) {
 
 }
 
-type pmsNotifiee pmService
+type pmsNotifiee PMService
 
-func (pm *pmsNotifiee) pmService() *pmService {
-	return (*pmService)(pm)
+func (pm *pmsNotifiee) pmService() *PMService {
+	return (*PMService)(pm)
 }
 
 func (pm *pmsNotifiee) Listen(network.Network, ma.Multiaddr)       {}

@@ -2,6 +2,10 @@ syntax = "proto3";
 option go_package = "./pb";
 package pm.pb;
 
+enum CHAT_TYPES {
+  Private = 0;
+  Group = 1;
+}
 
 
 message Message {
@@ -12,6 +16,7 @@ message Message {
   string sig = 6;
   string chatId = 7;
   string text = 8;
+  CHAT_TYPES chatType = 9;
 }
 
 message Text {

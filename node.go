@@ -73,6 +73,7 @@ func DefaultOption() Option {
 		libp2p.ConnectionManager(con),
 		libp2p.EnableAutoRelay(autorelay.WithCircuitV1Support(),autorelay.WithStaticRelays(bts)),
 		libp2p.EnableNATService(),
+		libp2p.EnableHolePunching(),
 	}
 	return Option{
 		LpOpt: opt,

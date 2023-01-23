@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,15 +40,18 @@ func TestMessenger(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	t.Log("contact added")
 
-	chat1, err := mr1.ChatAPI().New(core.ForPrivateChat(user2.ID))
+	chat1, err := mr1.ChatAPI().New(core.NewPrivateChat(*user2.ToContact()))
 	require.NoError(t, err)
+	chat1, err = mr1.ChatAPI().ChatInfo(chat1.ID)
+	require.NoError(t, err)
+
 	t.Log("Chat created")
 	_, err = mr1.ChatAPI().Send(chat1.ID, "hello")
 	require.NoError(t, err)
 	_, err = mr1.ChatAPI().Send(chat1.ID, "hello")
 	require.NoError(t, err)
 	t.Log("message sent")
-	time.Sleep(30 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	chat2, err := mr2.ChatAPI().ChatInfo(chat1.ID)
 	require.NoError(t, err)
@@ -56,7 +60,7 @@ func TestMessenger(t *testing.T) {
 	msgs, err := mr2.ChatAPI().Messages(chat1.ID, 0, 20)
 	require.NoError(t, err)
 	t.Logf("list of messages \n %v", msgs)
-	
+
 	// Test Event hand event handler
 	time.Sleep(10 * time.Second)
 	msgs, err = mr1.ChatAPI().Messages(chat1.ID, 0, 20)
@@ -74,8 +78,65 @@ func TestMessenger(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, int(chat2.Unread))
 
-
 	mr1.Stop()
 	mr2.Stop()
+
+}
+
+func getMessengers(t *testing.T, n int) []core.MessengerAPI {
+	messengers := make([]core.MessengerAPI, 0)
+	for i := 0; i < n; i++ {
+		name := "h" + fmt.Sprint(i)
+		opt := core.DefaultOption()
+		mr := core.NewMessengerAPI(t.TempDir()+"/"+name, opt, core.DefaultRoutedHost{})
+		_, err := mr.IdentityAPI().SignUp(name)
+		if err != nil {
+			panic("cant create host")
+		}
+		require.NoError(t, err)
+		mr.Start()
+		messengers = append(messengers, mr)
+	}
+	return messengers
+}
+
+func TestGroup(t *testing.T) {
+	err := logging.SetLogLevel("msgr-core", "DEBUG")
+	require.NoError(t, err)
+	// err = logging.SetLogLevel("*", "DEBUG")
+	require.NoError(t, err)
+	gpName := "something"
+	msgrs := getMessengers(t, 3)
+	members := make([]entity.Contact, 0)
+	for _, v := range msgrs {
+		self, err := v.IdentityAPI().Get()
+		require.NoError(t, err)
+		members = append(members, *self.ToContact())
+	}
+	chat, err := msgrs[0].ChatAPI().New(core.NewChatOpt{Name: gpName, Members: members, Type: entity.Group})
+	require.NoError(t, err)
+	for _, v := range msgrs[1:] {
+		err := v.ChatAPI().Join(chat.ID, chat.Name, entity.Group, members...)
+		require.NoError(t, err)
+	}
+	time.Sleep(30 * time.Second)
+	msg, err := msgrs[0].ChatAPI().Send(chat.ID, "helllooooooo")
+	require.NoError(t, err)
+	// go func() {
+	// 	for {
+	// 		for _,v := range msgrs {
+	// 			_, err := v.ChatAPI().Send(chat.ID, "helllooooooo")
+	// 			require.NoError(t, err)
+	// 			time.Sleep(1 * time.Second)
+	// 		}
+
+	// 	}
+
+	// }()
+	time.Sleep(5 * time.Second)
+	for _, v := range msgrs[1:] {
+		_, err := v.ChatAPI().Message(msg.ID)
+		require.NoError(t, err)
+	}
 
 }

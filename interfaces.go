@@ -3,10 +3,8 @@ package core
 import (
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/pb"
-	lpevt "github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
-
-type Bus = lpevt.Bus
 
 // provide api for managing contacts
 type ContactBookAPI interface {
@@ -23,14 +21,16 @@ type IdentityAPI interface {
 	IsLogin() bool
 	SignUp(name string) (*entity.Identity, error)
 	Get() (entity.Identity, error)
+	PeerID() (peer.ID, error)
 }
 
 // provide api to use chat
 type ChatAPI interface {
 	ChatInfo(id entity.ID) (entity.ChatInfo, error)
 	ChatInfos(skip int, limit int) ([]entity.ChatInfo, error)
-	Find(opt ChatOpt) ([]entity.ChatInfo, error)
-	New(opt ChatOpt) (entity.ChatInfo, error)
+	Join(id entity.ID, name string, chatType entity.ChatType, members ...entity.Contact) error
+	Find(opt SearchChatOpt) ([]entity.ChatInfo, error)
+	New(opt NewChatOpt) (entity.ChatInfo, error)
 	Send(chatID entity.ID, content string) (*entity.Message, error)
 	Seen(chatID entity.ID) error
 	Message(ID entity.ID) (entity.Message, error)
@@ -48,12 +48,34 @@ type MessengerAPI interface {
 	Stop()
 }
 
-type ChatOpt struct {
+
+type SearchChatOpt struct {
 	Name    string
 	Members []entity.ID
 	Type    entity.ChatType
 }
 
-func ForPrivateChat(contactID entity.ID) ChatOpt {
-	return ChatOpt{"", []entity.ID{contactID}, entity.Private}
+func WithPrivateChatContact(contactID entity.ID) SearchChatOpt {
+	return SearchChatOpt{"", []entity.ID{contactID}, entity.Private}
+}
+
+
+type NewChatOpt struct {
+	Name    string
+	Members []entity.Contact
+	Type    entity.ChatType
+}
+
+func NewPrivateChat(contact entity.Contact) NewChatOpt {
+	return NewChatOpt{"", []entity.Contact{contact}, entity.Private}
+}
+
+type MessengerService interface {
+	Send(entity.Envelop)
+	Stop()
+}
+
+type GroupChatService interface {
+	MessengerService
+	Join(chatId entity.ID, members []entity.Contact)
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/hood-chat/core/entity"
+	"github.com/libp2p/go-libp2p/core/event"
 )
 
 var ErrNotSupported = errors.New("not implemented")
@@ -114,4 +115,17 @@ func mapkey(m map[entity.Status]string, value string) (key entity.Status, ok boo
 		}
 	}
 	return
+}
+
+
+func EmitMessageChange(emitter event.Emitter, status entity.Status, msgID string) {
+	evgrp := NewMessagingEventGroup()
+	ev, err := evgrp.Make("ChangeMessageStatus", status, entity.ID(msgID))
+	if err != nil {
+		panic("bus has problem")
+	}
+	err = emitter.Emit(*ev)
+	if err != nil {
+		panic("bus has problem")
+	}
 }

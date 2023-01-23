@@ -2,8 +2,6 @@ package core
 
 import (
 	"errors"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +9,7 @@ import (
 	"github.com/hood-chat/core/pb"
 	rp "github.com/hood-chat/core/repo"
 	st "github.com/hood-chat/core/store"
+	"github.com/timshannon/badgerhold/v4"
 )
 
 var _ ChatAPI = (*Chat)(nil)
@@ -22,14 +21,15 @@ type Chat struct {
 	chRepo   ChatRepo
 	mRepo    MessageRepo
 	book     ContactBookAPI
-	pms      PMService
+	pms      MessengerService
+	gps      GroupChatService
 	Identity IdentityAPI
 }
 
-func NewChatAPI(store *st.Store, b ContactBookAPI, p PMService, i IdentityAPI) ChatAPI {
+func NewChatAPI(store *st.Store, b ContactBookAPI, p MessengerService, g GroupChatService,i IdentityAPI) ChatAPI {
 	ch := rp.NewChatRepo(store)
 	m := rp.NewMessageRepo(store)
-	return &Chat{ch, m, b, p, i}
+	return &Chat{ch, m, b, p, g,i}
 }
 
 func (c *Chat) ChatInfo(id entity.ID) (entity.ChatInfo, error) {
@@ -48,25 +48,28 @@ func (c *Chat) ChatInfos(skip int, limit int) ([]entity.ChatInfo, error) {
 	return rChat.GetAll(opt)
 }
 
-func (c *Chat) New(opt ChatOpt) (entity.ChatInfo, error) {
-	if opt.Type == entity.Private {
-		con, err := c.book.Get(entity.ID(opt.Members[0]))
-		if err != nil {
-			return entity.ChatInfo{}, err
-		}
-		me, err := c.Identity.Get()
-		if err != nil {
-			return entity.ChatInfo{}, err
-		}
-		chatID := generatePMChatID(con, *me.ToContact())
-		if err != nil {
-			return entity.ChatInfo{}, err
-		}
-		chat := entity.ChatInfo{ID: chatID, Name: con.Name, Members: []entity.Contact{*me.ToContact(), con}, Type: opt.Type}
+func (c *Chat) New(opt NewChatOpt) (entity.ChatInfo, error) {
+
+	me, err := c.Identity.Get()
+	if err != nil {
+		return entity.ChatInfo{}, err
+	}
+
+	switch opt.Type {
+	case entity.Private:
+		chat := entity.NewPrivateChat(opt.Members[0], *me.ToContact())
 		err = c.chRepo.Add(chat)
 		return chat, err
+	case entity.Group:
+		members := append(opt.Members, *me.ToContact())
+		chat := entity.NewGroupChat(opt.Name, members)
+		err := c.chRepo.Add(chat)
+		c.gps.Join(chat.ID, members)
+		return chat, err
+	default:
+		return entity.ChatInfo{}, errors.New("type not supported")
 	}
-	return entity.ChatInfo{}, errors.New("type not supported")
+
 }
 
 func (c *Chat) Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {
@@ -79,7 +82,7 @@ func (c *Chat) Message(ID entity.ID) (entity.Message, error) {
 	return c.mRepo.GetByID(ID)
 }
 
-func (c *Chat) Find(opt ChatOpt) ([]entity.ChatInfo, error) {
+func (c *Chat) Find(opt SearchChatOpt) ([]entity.ChatInfo, error) {
 	if opt.Type == entity.Private {
 		contactID := opt.Members[0]
 		con, err := c.book.Get(contactID)
@@ -90,11 +93,11 @@ func (c *Chat) Find(opt ChatOpt) ([]entity.ChatInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		chatID := generatePMChatID(con, *me.ToContact())
+		chatID := entity.NewPrivateChat(con, *me.ToContact())
 		if err != nil {
 			return nil, err
 		}
-		chat, err := c.chRepo.GetByID(chatID)
+		chat, err := c.chRepo.GetByID(chatID.ID)
 		return []entity.ChatInfo{chat}, err
 	}
 	return nil, errors.New("type not supported")
@@ -105,6 +108,14 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	rchat := c.chRepo
+	chat, err := rchat.GetByID(chatID)
+	if err != nil {
+		log.Errorf("Can not get chat %s", err.Error())
+		return nil, err
+	}
+
 	msg := entity.Message{
 		ID:        entity.ID(uuid.New().String()),
 		ChatID:    chatID,
@@ -112,6 +123,7 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 		Text:      content,
 		Status:    entity.Pending,
 		Author:    *me.ToContact(),
+		ChatType:  chat.Type,
 	}
 	rmsg := c.mRepo
 	err = rmsg.Add(msg)
@@ -119,20 +131,28 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 		log.Errorf("Can not add message %s", err.Error())
 		return nil, err
 	}
-	rchat := c.chRepo
-	chat, err := rchat.GetByID(chatID)
-	if err != nil {
-		log.Errorf("Can not get chat %s", err.Error())
-		return nil, err
-	}
-	for _, to := range chat.Members {
-		if to.ID != msg.Author.ID {
-			log.Debugf("outbox message")
-			c.pms.Send(entity.Envelop{To: to, Message: msg})
-			log.Debugf("outboxed message")
+
+	switch chat.Type {
+	case entity.Private:
+		for _, to := range chat.Members {
+			if to.ID != msg.Author.ID {
+				log.Debugf("outbox message")
+				c.pms.Send(entity.Envelop{To: to, Message: msg})
+				log.Debugf("outboxed message")
+			}
 		}
+		return &msg, nil
+	case entity.Group:
+		c.gps.Send(entity.Envelop{To: entity.Contact{
+			Name: chat.Name,
+			ID: chatID,
+		}, Message: msg})
+		return &msg, nil
+	default:
+		return nil, errors.New("Chat type not supported")
+
 	}
-	return &msg, nil
+
 }
 
 func (c Chat) received(msg *pb.Message) error {
@@ -141,25 +161,24 @@ func (c Chat) received(msg *pb.Message) error {
 	chatID := entity.ID(msg.ChatId)
 
 	con, err := c.book.Get(mAuthorID)
-	if err != nil {
+	if err == badgerhold.ErrNotFound {
 		log.Errorf("fail to get contact %s", err.Error())
 		con = entity.Contact{
 			ID:   mAuthorID,
 			Name: msg.Author.Name,
 		}
-		err := c.book.Put(con)
-		if err != nil {
-			log.Errorf("fail to add contact %s", err.Error())
-			return err
-		}
+		err = nil
+	}
+	if err != nil {
+		return err
 	}
 
 	chat, err := c.ChatInfo(chatID)
 	if err != nil {
 		log.Errorf("can not find chat %s", err.Error())
-		opt := ChatOpt{
+		opt := NewChatOpt{
 			msg.Author.Name,
-			[]entity.ID{con.ID},
+			[]entity.Contact{con},
 			entity.Private,
 		}
 		chat, err = c.New(opt)
@@ -168,7 +187,7 @@ func (c Chat) received(msg *pb.Message) error {
 			return err
 		}
 	}
-	
+
 	newMsg := entity.Message{
 		ID:        msgID,
 		ChatID:    chat.ID,
@@ -176,7 +195,9 @@ func (c Chat) received(msg *pb.Message) error {
 		Text:      msg.GetText(),
 		Status:    entity.Received,
 		Author:    con,
+		ChatType:  entity.ChatType(msg.ChatType),
 	}
+
 	rmsg := c.mRepo
 	err = rmsg.Add(newMsg)
 	log.Debugf("new message %s ", newMsg)
@@ -205,12 +226,15 @@ func (c *Chat) Seen(chatID entity.ID) error {
 	return nil
 }
 
-func generatePMChatID(con entity.Contact, me entity.Contact) entity.ID {
-	cons := []string{con.ID.String(), me.ID.String()}
-	sort.Strings(cons)
-	return entity.ID(strings.Join(cons, ""))
+func (c *Chat) Join(id entity.ID, name string, chatType entity.ChatType, members ...entity.Contact) error {
+	chat := &entity.ChatInfo{id, name,members, chatType,0,""}
+	err := c.chRepo.Add(*chat)
+	if err != nil {
+		return err
+	}
+	c.gps.Join(id,members)
+	return nil
 }
-
 
 func (c *Chat) updateMessageStatus(msgID entity.ID, status entity.Status) error {
 	rmsg := c.mRepo
