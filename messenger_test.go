@@ -15,7 +15,7 @@ func TestMessenger(t *testing.T) {
 	t.Log("start test")
 	err := logging.SetLogLevel("msgr-core", "DEBUG")
 	require.NoError(t, err)
-	err = logging.SetLogLevel("*", "DEBUG")
+	// err = logging.SetLogLevel("*", "DEBUG")
 	require.NoError(t, err)
 	opt1 := core.DefaultOption()
 	opt2 := core.DefaultOption()
@@ -51,7 +51,7 @@ func TestMessenger(t *testing.T) {
 	_, err = mr1.ChatAPI().Send(chat1.ID, "hello")
 	require.NoError(t, err)
 	t.Log("message sent")
-	time.Sleep(60 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	chat2, err := mr2.ChatAPI().ChatInfo(chat1.ID)
 	require.NoError(t, err)

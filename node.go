@@ -101,10 +101,10 @@ func (b DefaultRoutedHost) Create(opt Option) (host.Host, error) {
 		return nil, err
 	}
 	btconf := bootstrap.BootstrapConfigWithPeers(bts)
-	btconf.MinPeerThreshold = 1
+	btconf.MinPeerThreshold = 5
 
 	// connect to the chosen ipfs nodes
-	_, err = bootstrap.Bootstrap(ID, basicHost, kDht, btconf)
+	_, err = bootstrap.Bootstrap(basicHost.ID(), basicHost, kDht, btconf)
 	if err != nil {
 		log.Error("bootstrap failed. ", err)
 		return nil, err
