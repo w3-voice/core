@@ -4,31 +4,30 @@ import (
 	"time"
 
 	"github.com/hood-chat/core/pb"
-	"github.com/hood-chat/core/utils"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-msgio/protoio"
+	"github.com/libp2p/go-msgio/pbio"
 )
 
-var log = logging.Logger("chat-direct")
+var log = logging.Logger("chat-invite")
 
 const (
 	MessageTimeout = time.Second * 60
 
-	ID = "/chat/direct/0.0.1"
+	ID = "/chat/invite/0.0.1"
 
-	ServiceName = "chat.direct"
+	ServiceName = "chat.invite"
 
-	MaxMsgSize = 10 * 1024 // 4K
+	MaxMsgSize = 4 * 1024 // 4K
 
 	StreamTimeout  = time.Minute
 	ConnectTimeout = 30 * time.Second
 )
 
 
-func SetMessageHandler(h host.Host,cb func(m *pb.Message)){
+func SetInviteHandler(h host.Host, cb func(m *pb.Request)){
 	h.SetStreamHandler(ID, func(s network.Stream) {
 		msg, err  := read(s)
 		if err != nil {
@@ -38,7 +37,7 @@ func SetMessageHandler(h host.Host,cb func(m *pb.Message)){
 	})
 }
 
-func Send(s network.Stream, pbmsg *pb.Message) error {
+func Send(s network.Stream, pbmsg *pb.Request) error {
 	log.Debug("direct: sending message")
 	if err := s.Scope().ReserveMemory(MaxMsgSize, network.ReservationPriorityAlways); err != nil {
 		log.Debugf("error reserving memory for message stream: %s", err)
@@ -46,11 +45,11 @@ func Send(s network.Stream, pbmsg *pb.Message) error {
 		return err
 	}
 	defer s.Scope().ReleaseMemory(MaxMsgSize)
-	wr := protoio.NewDelimitedWriter(s)
+	wr := pbio.NewDelimitedWriter(s)
 	defer func() {
 		wr.Close()
 	}()
-	log.Debugf("text sent with message text: %s", pbmsg.GetText())
+	log.Debugf("chat request send for: %s", pbmsg.GetId())
 	err := wr.WriteMsg(pbmsg)
 	if err != nil {
 		log.Errorf("write err %s", err)
@@ -59,7 +58,7 @@ func Send(s network.Stream, pbmsg *pb.Message) error {
 	return nil
 }
 
-func read(str network.Stream) (*pb.Message,error) {
+func read(str network.Stream) (*pb.Request,error) {
 	defer str.Close()
 	if err := str.Scope().SetService(ServiceName); err != nil {
 		log.Debugf("error attaching stream to ping service: %s", err)
@@ -74,12 +73,12 @@ func read(str network.Stream) (*pb.Message,error) {
 	}
 	defer str.Scope().ReleaseMemory(MaxMsgSize)
 
-	rd := utils.NewDelimitedReader(str, MaxMsgSize)
+	rd := pbio.NewDelimitedReader(str, MaxMsgSize)
 	defer rd.Close()
 
 	str.SetDeadline(time.Now().Add(StreamTimeout))
 
-	msg := new(pb.Message)
+	msg := new(pb.Request)
 
 	err := rd.ReadMsg(msg)
 	if err != nil {

@@ -116,7 +116,7 @@ func TestGroup(t *testing.T) {
 	chat, err := msgrs[0].ChatAPI().New(core.NewChatOpt{Name: gpName, Members: members, Type: entity.Group})
 	require.NoError(t, err)
 	for _, v := range msgrs[1:] {
-		err := v.ChatAPI().Join(chat.ID, chat.Name, entity.Group, members...)
+		err := v.ChatAPI().Join(chat)
 		require.NoError(t, err)
 	}
 	time.Sleep(30 * time.Second)

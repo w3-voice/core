@@ -5,7 +5,6 @@ import (
 
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/event"
-	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/store"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -21,8 +20,8 @@ type Messenger struct {
 	store    *store.Store
 	identity IdentityAPI
 	book     ContactBookAPI
-	pms      MessengerService
-	gps      GroupChatService
+	pms      DirectService
+	gps      PubSubService
 	chat     ChatAPI
 	hb       Builder
 	opt      Option
@@ -72,7 +71,7 @@ func (m *Messenger) Start() {
 	m.Host = h
 	m.connector = NewConnector(h)
 	gpCh := make(chan string)
-	m.pms = NewPMService(h, m.bus, m.connector)
+	m.pms = NewDirectMessaging(h, m.bus, m.connector,make(chan*entity.Envelop))
 	m.gps = NewGPService(context.Background(),h,m.IdentityAPI(),m.bus,gpCh,m.connector)
 	m.chat = NewChatAPI(m.store, m.book, m.pms, m.gps,m.identity)
 
@@ -86,47 +85,31 @@ func (m *Messenger) Start() {
 		}
 	}
 
-	sub, err := m.bus.Subscribe(new(event.EvtMessageReceived))
+	sub, err := m.bus.Subscribe(new(event.MessageEventObj))
 	if err != nil {
 		panic(err)
 	}
 	go func() {
 		defer sub.Close()
 		for e := range sub.Out() {
-			msg := e.(event.EvtMessageReceived).Msg
-			log.Debugf("new message received %v", msg)
-			m.messageHandler(msg)
-		}
-	}()
-	subStaus, err := m.bus.Subscribe(new(event.EvtObject))
-	if err != nil {
-		panic(err)
-	}
-	go func() {
-		defer subStaus.Close()
-		for e := range subStaus.Out() {
-			log.Debug("evtObject received")
-			evt := e.(event.EvtObject)
-			meg := event.NewMessagingEventGroup()
-			if meg.Validate(&evt) {
-				evt, _ := meg.Parse(&evt)
-				log.Debugf("messagingEvent: %v", evt)
-				if *evt.Action() == entity.Sent || *evt.Action() == entity.Failed {
-					m.chat.updateMessageStatus(*evt.Payload(), *evt.Action())
+			evt := e.(event.MessageEventObj)
+			switch msg := e.(event.MessageEventObj).Payload().(type) {
+			case entity.ID:
+				if evt.Action() == entity.Sent || evt.Action() == entity.Failed {
+					m.chat.updateMessageStatus(msg, evt.Action())
 				}
+			case entity.Message:
+				m.messageHandler(msg)
 			}
 		}
 	}()
 }
 
-func (m *Messenger) messageHandler(msg *pb.Message) {
+func (m *Messenger) messageHandler(msg entity.Message) {
 	err := m.chat.received(msg)
 	if err != nil {
 		return
 	}
-	em, _ := m.bus.Emitter(new(event.EvtObject))
-	defer em.Close()
-	event.EmitMessageChange(em, entity.Received, msg.Id)
 }
 
 func (m *Messenger) ContactBookAPI() ContactBookAPI {

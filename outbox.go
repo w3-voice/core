@@ -11,7 +11,11 @@ import (
 
 const Timeout = 60 * 5
 
-type Data map[peer.ID][]*entity.Envelop
+type DataItem struct{
+	nvp *entity.Envelop
+	failed bool
+}
+type Data map[peer.ID][]DataItem
 
 type outbox struct {
 	mux     sync.Mutex
@@ -34,15 +38,19 @@ func newOutBox() *outbox {
 func (o *outbox) put(key peer.ID, val *entity.Envelop) {
 	o.mux.Lock()
 	defer o.mux.Unlock()
-	o.data[key] = append(o.data[key], val)
+	o.data[key] = append(o.data[key], DataItem{val, false})
 	o.mayStart()
 }
 
 func (o *outbox) pop(key peer.ID) []*entity.Envelop {
 	o.mux.Lock()
-	msgs, ok := o.data[key]
+	var msgs []*entity.Envelop
+	da, ok := o.data[key]
 	if ok {
 		delete(o.data, key)
+	}
+	for _,v := range da {
+		msgs = append(msgs, v.nvp)
 	}
 	o.mux.Unlock()
 
@@ -74,21 +82,20 @@ func (o *outbox) background(ctx context.Context) {
 		select {
 		case t := <-ticker.C:
 			o.mux.Lock()
-			tmp := make(map[peer.ID][]*entity.Envelop)
+			tmp := make(Data)
 			for k, v := range o.data {
 				for _, m := range v {
-					if m.Message.CreatedAt+(Timeout) <= t.UTC().Unix() {
-						o.failed <- m
-					} else {
-						tmp[k] = append(tmp[k], m)
+					if m.nvp.CreatedAt+(Timeout) <= t.UTC().Unix() && !m.failed {
+						o.failed <- m.nvp
 					}
+					tmp[k] = append(tmp[k], m)
 				}
 			}
 			o.data = tmp
 			o.mux.Unlock()
 			o.mayStop()
-		case <-ctx.Done():
-			log.Debug("context error broke sender")
+		case e:=<-ctx.Done():
+			log.Error("context error broke sender",e)
 			return
 		}
 

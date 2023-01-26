@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	"github.com/hood-chat/core/pb"
+	"github.com/hood-chat/core/protocol/message"
 	"github.com/libp2p/go-libp2p/core/crypto"
-	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 type Status int
@@ -45,7 +47,7 @@ func (c Identity) PeerID() (peer.ID, error) {
 }
 
 // DecodePrivateKey is a helper to decode the users PrivateKey
-func (i *Identity) DecodePrivateKey(passphrase string) (ic.PrivKey, error) {
+func (i *Identity) DecodePrivateKey(passphrase string) (crypto.PrivKey, error) {
 	pkb, err := base64.StdEncoding.DecodeString(i.PrivKey)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func (i *Identity) DecodePrivateKey(passphrase string) (ic.PrivKey, error) {
 
 	// currently storing key unencrypted. in the future we need to encrypt it.
 	// TODO(security)
-	return ic.UnmarshalPrivateKey(pkb)
+	return crypto.UnmarshalPrivateKey(pkb)
 }
 
 func (i *Identity) ToContact() *Contact {
@@ -98,6 +100,11 @@ func CreateIdentity(name string) (Identity, error) {
 	return ident, nil
 }
 
+type ProtoMessage interface {
+	Proto() proto.Message
+}
+
+
 type Message struct {
 	ID        ID
 	ChatID    ID
@@ -108,7 +115,7 @@ type Message struct {
 	ChatType  ChatType
 }
 
-func (m Message) Proto() *pb.Message {
+func (m Message) Proto() proto.Message {
 	msg := m
 	return &pb.Message{
 		Text:      msg.Text,
@@ -122,6 +129,25 @@ func (m Message) Proto() *pb.Message {
 			Name: msg.Author.Name,
 		},
 		ChatType: pb.CHAT_TYPES(msg.ChatType),
+	}
+}
+
+func ToMessage(pbmsg *pb.Message) Message {
+	mAuthorID := ID(pbmsg.Author.Id)
+	msgID := ID(pbmsg.GetId())
+	chatID := ID(pbmsg.ChatId)
+	con := Contact{
+		ID:   mAuthorID,
+		Name: pbmsg.Author.Name,
+	}
+	return Message{
+		ID:        msgID,
+		ChatID:    chatID,
+		CreatedAt: pbmsg.GetCreatedAt(),
+		Text:      pbmsg.GetText(),
+		Status:    Received,
+		Author:    con,
+		ChatType:  ChatType(pbmsg.ChatType),
 	}
 }
 
@@ -143,9 +169,37 @@ func (c Contact) PeerID() (peer.ID, error) {
 }
 
 type Envelop struct {
-	To Contact
-	Message Message
+	To        Contact
+	Message   ProtoMessage
+	ID        string
+	CreatedAt int64
+	Protocol  protocol.ID
 }
+
+func (e Envelop) PeerID() peer.ID {
+	pi, _ := e.To.PeerID()
+	return pi
+}
+
+type PubSubEnvelop struct {
+	Topic     string
+	Message   ProtoMessage
+}
+
+func NewMessageEnvelop(c Contact, m Message) (*Envelop, error) {
+	_, err := c.PeerID()
+	if err != nil {
+		return nil, err
+	}
+	return &Envelop{
+		To: c,
+		Message: m,
+		ID: m.ID.String(),
+		CreatedAt: m.CreatedAt,
+		Protocol: direct.ID,
+	}, nil
+}
+
 
 type ChatInfo struct {
 	ID          ID
@@ -154,6 +208,34 @@ type ChatInfo struct {
 	Type        ChatType
 	Unread      uint64
 	LatestText  string
+	Admins      []Contact
+}
+
+func ToChatInfo(pbmsg *pb.Request) ChatInfo {
+	ci := new(ChatInfo)
+	ci.ID = ID(pbmsg.Id)
+	ci.Name = pbmsg.Name
+	for _,v := range pbmsg.Members {
+		ci.Members = append(ci.Members, Contact{ID(v.Id),v.Name})
+	}
+	for _,v := range pbmsg.Admins {
+		ci.Admins = append(ci.Admins, Contact{ID(v.Id),v.Name})
+	}
+	return *ci
+}
+
+func (m ChatInfo) Proto() proto.Message {
+	r := &pb.Request{
+		Id: m.ID.String(),
+		ChatType: pb.CHAT_TYPES(m.Type),
+	}
+	for _,v := range m.Members {
+		r.Members = append(r.Members, &pb.Contact{Name:v.Name, Id: v.ID.String()})
+	}
+	for _,v := range m.Admins {
+		r.Admins = append(r.Admins, &pb.Contact{Name:v.Name, Id: v.ID.String()})
+	}
+	return r
 }
 
 func NewPrivateChat(creator Contact, con Contact) ChatInfo {
@@ -168,7 +250,7 @@ func generatePMChatID(creator Contact, con Contact) ID {
 	return ID(strings.Join(cons, ""))
 }
 
-func NewGroupChat(name string, members []Contact) ChatInfo {
+func NewGroupChat(name string, members []Contact, admins []Contact) ChatInfo {
 	var pk crypto.PubKey
 
 	fmt.Printf("generating ED25519 keypair...")
@@ -181,5 +263,5 @@ func NewGroupChat(name string, members []Contact) ChatInfo {
 	if err != nil {
 		panic("can not generate key")
 	}
-	return ChatInfo{ID: ID(id.String()), Name: name, Members: members, Type: Group}
+	return ChatInfo{ID: ID(id.String()), Name: name, Members: members, Type: Group, Admins: admins}
 }

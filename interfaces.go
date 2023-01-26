@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/hood-chat/core/entity"
-	"github.com/hood-chat/core/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -28,7 +27,7 @@ type IdentityAPI interface {
 type ChatAPI interface {
 	ChatInfo(id entity.ID) (entity.ChatInfo, error)
 	ChatInfos(skip int, limit int) ([]entity.ChatInfo, error)
-	Join(id entity.ID, name string, chatType entity.ChatType, members ...entity.Contact) error
+	Join(entity.ChatInfo) error
 	Find(opt SearchChatOpt) ([]entity.ChatInfo, error)
 	New(opt NewChatOpt) (entity.ChatInfo, error)
 	Send(chatID entity.ID, content string) (*entity.Message, error)
@@ -36,14 +35,14 @@ type ChatAPI interface {
 	Message(ID entity.ID) (entity.Message, error)
 	Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error)
 	updateMessageStatus(msgID entity.ID, status entity.Status) error
-	received(msg *pb.Message) error
+	received(msg entity.Message) error
 }
 
 type MessengerAPI interface {
 	ContactBookAPI()  ContactBookAPI
-	ChatAPI()      ChatAPI
-	IdentityAPI()  IdentityAPI
-	EventBus()     Bus
+	ChatAPI()         ChatAPI
+	IdentityAPI()     IdentityAPI
+	EventBus()        Bus
 	Start()     
 	Stop()
 }
@@ -70,12 +69,21 @@ func NewPrivateChat(contact entity.Contact) NewChatOpt {
 	return NewChatOpt{"", []entity.Contact{contact}, entity.Private}
 }
 
-type MessengerService interface {
-	Send(entity.Envelop)
+type DirectService interface {
+	Send(nvlop *entity.Envelop)
 	Stop()
 }
 
-type GroupChatService interface {
-	MessengerService
+type PubSubService interface {
+	Send(entity.PubSubEnvelop)
+	Stop()
 	Join(chatId entity.ID, members []entity.Contact)
+}
+
+type ChatRequest struct {
+	ID          entity.ID
+	Name        string
+	Members     []entity.Contact
+	Type        entity.ChatType
+	Admins      []entity.Contact
 }
