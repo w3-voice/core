@@ -66,14 +66,14 @@ func (e *chatEG) NewEvent(name string, action string, payload interface{}) (Chat
 }
 
 func (e *chatEG) Validate(evt ChatEvent) bool {
-	if evt.Group() != ChatGroup {
+	if evt.GetGroup() != ChatGroup {
 		return false
 	}
-	_, pres := e.Names[evt.Name()]
+	_, pres := e.Names[evt.GetName()]
 	if !pres {
 		return false
 	}
-	_, pres = e.Actions[evt.Action()]
+	_, pres = e.Actions[evt.GetAction()]
 	return pres
 }
 

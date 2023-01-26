@@ -93,10 +93,10 @@ func (m *Messenger) Start() {
 		defer msgSub.Close()
 		for e := range msgSub.Out() {
 			evt := e.(event.MessageEventObj)
-			switch msg := e.(event.MessageEventObj).Payload().(type) {
+			switch msg := e.(event.MessageEventObj).GetPayload().(type) {
 			case entity.ID:
-				if evt.Action() == entity.Sent || evt.Action() == entity.Failed {
-					m.chat.updateMessageStatus(msg, evt.Action())
+				if evt.GetAction() == entity.Sent || evt.GetAction() == entity.Failed {
+					m.chat.updateMessageStatus(msg, evt.GetAction())
 				}
 			case entity.Message:
 				m.messageHandler(msg)
@@ -112,9 +112,9 @@ func (m *Messenger) Start() {
 		defer chatSub.Close()
 		for e := range chatSub.Out() {
 			evt := e.(event.ChatEventObj)
-			switch evt.Action() {
+			switch evt.GetAction() {
 			case event.InviteReceived:
-				m.ChatAPI().Join(evt.Payload().(entity.ChatInfo))
+				m.ChatAPI().Join(evt.GetPayload().(entity.ChatInfo))
 			case event.InviteSent:
 				// change Chat info so it keep track of chat request's
 				break;
