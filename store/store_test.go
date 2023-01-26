@@ -89,13 +89,13 @@ func TestChat(t *testing.T) {
 		{
 			ID:      "1",
 			Name:    "blue",
-			Members: []string{"1", "2"},
+			Members: test_contact[:2],
 			Type: entity.Private,
 		},
 		{
 			ID:      "2",
 			Name:    "blue",
-			Members: []string{"1", "3"},
+			Members: []store.BHContact{test_contact[0],test_contact[3]},
 			Type: entity.Private,
 		},
 	}

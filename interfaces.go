@@ -2,11 +2,8 @@ package core
 
 import (
 	"github.com/hood-chat/core/entity"
-	"github.com/hood-chat/core/pb"
-	lpevt "github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
-
-type Bus = lpevt.Bus
 
 // provide api for managing contacts
 type ContactBookAPI interface {
@@ -23,37 +20,71 @@ type IdentityAPI interface {
 	IsLogin() bool
 	SignUp(name string) (*entity.Identity, error)
 	Get() (entity.Identity, error)
+	PeerID() (peer.ID, error)
 }
 
 // provide api to use chat
 type ChatAPI interface {
 	ChatInfo(id entity.ID) (entity.ChatInfo, error)
 	ChatInfos(skip int, limit int) ([]entity.ChatInfo, error)
-	Find(opt ChatOpt) ([]entity.ChatInfo, error)
-	New(opt ChatOpt) (entity.ChatInfo, error)
+	Join(entity.ChatInfo) error
+	Find(opt SearchChatOpt) ([]entity.ChatInfo, error)
+	New(opt NewChatOpt) (entity.ChatInfo, error)
 	Send(chatID entity.ID, content string) (*entity.Message, error)
 	Seen(chatID entity.ID) error
 	Message(ID entity.ID) (entity.Message, error)
 	Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error)
+	Invite(chID entity.ID, cons []entity.Contact) error
 	updateMessageStatus(msgID entity.ID, status entity.Status) error
-	received(msg *pb.Message) error
+	received(msg entity.Message) error
 }
 
 type MessengerAPI interface {
 	ContactBookAPI()  ContactBookAPI
-	ChatAPI()      ChatAPI
-	IdentityAPI()  IdentityAPI
-	EventBus()     Bus
+	ChatAPI()         ChatAPI
+	IdentityAPI()     IdentityAPI
+	EventBus()        Bus
 	Start()     
 	Stop()
 }
 
-type ChatOpt struct {
+
+type SearchChatOpt struct {
 	Name    string
 	Members []entity.ID
 	Type    entity.ChatType
 }
 
-func ForPrivateChat(contactID entity.ID) ChatOpt {
-	return ChatOpt{"", []entity.ID{contactID}, entity.Private}
+func WithPrivateChatContact(contactID entity.ID) SearchChatOpt {
+	return SearchChatOpt{"", []entity.ID{contactID}, entity.Private}
+}
+
+
+type NewChatOpt struct {
+	Name    string
+	Members []entity.Contact
+	Type    entity.ChatType
+}
+
+func NewPrivateChat(contact entity.Contact) NewChatOpt {
+	return NewChatOpt{"", []entity.Contact{contact}, entity.Private}
+}
+
+type DirectService interface {
+	Send(nvlop *entity.Envelop)
+	Stop()
+}
+
+type PubSubService interface {
+	Send(entity.PubSubEnvelop)
+	Stop()
+	Join(chatId entity.ID, members []entity.Contact)
+}
+
+type ChatRequest struct {
+	ID          entity.ID
+	Name        string
+	Members     []entity.Contact
+	Type        entity.ChatType
+	Admins      []entity.Contact
 }

@@ -24,8 +24,9 @@ type BHContact struct {
 type BHChat struct {
 	Name    string
 	ID      string `badgerhold:"unique"`
-	Members []string
+	Members []BHContact
 	Type    entity.ChatType
+	Admins  []BHContact
 }
 
 type BHTextMessage struct {

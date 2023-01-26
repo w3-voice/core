@@ -1,7 +1,10 @@
 syntax = "proto3";
 option go_package = "./pb";
-package pm.pb;
 
+enum CHAT_TYPES {
+  Private = 0;
+  Group = 1;
+}
 
 
 message Message {
@@ -12,18 +15,19 @@ message Message {
   string sig = 6;
   string chatId = 7;
   string text = 8;
-}
-
-message Text {
-  string text = 1;
-}
-
-message MessageStatus {
-  int64 msgId = 1;
-  string status = 2;
+  CHAT_TYPES chatType = 9;
 }
 
 message Contact {
   string name = 1;
   string id = 2;
+}
+
+
+message Request {
+  CHAT_TYPES chatType = 1;
+  string Id = 2;
+  repeated Contact members = 3;
+  repeated Contact admins = 4;
+  string name = 5;
 }

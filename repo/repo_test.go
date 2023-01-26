@@ -87,6 +87,7 @@ func TestChat(t *testing.T) {
 				ID:   "2",
 				Name: "red",
 			}},
+		Admins: []entity.Contact{},	
 		Type:       entity.Private,
 		Unread:     1,
 		LatestText: "123 123 345",
@@ -104,6 +105,7 @@ func TestChat(t *testing.T) {
 				Name: "blue",
 			}},
 		Type:       entity.Private,
+		Admins: []entity.Contact{},	
 		Unread:     0,
 		LatestText: "234vbxvb cvdfrg ",
 	}
