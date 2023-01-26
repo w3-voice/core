@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hood-chat/core/entity"
+	"github.com/hood-chat/core/protocol/invite"
 	rp "github.com/hood-chat/core/repo"
 	st "github.com/hood-chat/core/store"
 )
@@ -201,6 +202,17 @@ func (c *Chat) Join(ci entity.ChatInfo) error {
 		return err
 	}
 	c.gps.Join(ci.ID, ci.Admins)
+	return nil
+}
+
+func (c *Chat) Invite(chatID entity.ID, cons []entity.Contact) error {
+	chat, err := c.chRepo.GetByID(chatID)
+	if err != nil {
+		return err
+	}
+	for _, con := range cons {
+		c.pms.Send(&entity.Envelop{To: con,Message: chat,ID: chat.ID.String(),CreatedAt: time.Now().Unix(),Protocol: invite.ID})
+	}
 	return nil
 }
 

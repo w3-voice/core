@@ -34,6 +34,7 @@ type ChatAPI interface {
 	Seen(chatID entity.ID) error
 	Message(ID entity.ID) (entity.Message, error)
 	Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error)
+	Invite(chID entity.ID, cons []entity.Contact) error
 	updateMessageStatus(msgID entity.ID, status entity.Status) error
 	received(msg entity.Message) error
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
 	"github.com/hood-chat/core/protocol/message"
-	// "github.com/hood-chat/core/protocol/invite"
+	"github.com/hood-chat/core/protocol/invite"
 	"github.com/libp2p/go-libp2p/core/host"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -39,6 +39,8 @@ func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *
 	dms.host = h
 	// register message protocol
 	direct.SetMessageHandler(h, dms.messageHandler)
+	// register invite protocol
+	invite.SetInviteHandler(h, dms.inviteHandler)
 	log.Debug("service PMS created")
 	dms.input = input
 	dms.outbox = newOutBox()
@@ -129,7 +131,8 @@ func (c *DirectMessaging) messageHandler(msg *pb.Message) {
 }
 
 func (c *DirectMessaging) inviteHandler(msg *pb.Request) {
-	log.Debugf("join chat request received for %s", msg.Id)
+	log.Debugf("invite received %s", msg.Id)
+	event.EmitInvite(c.bus, event.InviteReceived, entity.ToChatInfo(msg))
 }
 
 func (c *DirectMessaging) Stop() {

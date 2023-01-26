@@ -8,7 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 )
 
-const Group = "messaging"
+const MessageGroup = "messaging"
 type Empty struct{}
 const ChangeStatus = "ChangeStatus"
 const NewMessage   = "NewMessage"
@@ -21,13 +21,13 @@ var NewMessageEvent = NewEvtObj[entity.Status, interface{}]
 
 var MessagingEG = NewMessagingEventGroup()
 
-type MessageStatusEG struct {
+type messagingEG struct {
 	Actions map[entity.Status]string
 	Names   map[string]Empty
 }
 
 func NewMessagingEventGroup() MessageEventGroup {
-	return &MessageStatusEG{
+	return &messagingEG{
 		Actions: map[entity.Status]string{
 			entity.Seen:     "seen",
 			entity.Sent:     "sent",
@@ -42,7 +42,7 @@ func NewMessagingEventGroup() MessageEventGroup {
 	}
 }
 
-func (e MessageStatusEG) NewEvent(name string, action entity.Status, payload interface{}) (MessageEvent, error) {
+func (e *messagingEG) NewEvent(name string, action entity.Status, payload interface{}) (MessageEvent, error) {
 	_, pres := e.Names[name]
 	if !pres {
 		return nil, ErrNotSupported
@@ -61,12 +61,12 @@ func (e MessageStatusEG) NewEvent(name string, action entity.Status, payload int
 		return nil, ErrNotSupported
 	}
 
-	evt := NewMessageEvent(name, Group, action, payload)
+	evt := NewMessageEvent(name, MessageGroup, action, payload)
 	return evt, nil
 }
 
-func (e MessageStatusEG) Validate(evt MessageEvent) bool {
-	if evt.Group() != Group {
+func (e *messagingEG) Validate(evt MessageEvent) bool {
+	if evt.Group() != MessageGroup {
 		return false
 	}
 	_, pres := e.Names[evt.Name()]
@@ -77,7 +77,7 @@ func (e MessageStatusEG) Validate(evt MessageEvent) bool {
 	return pres
 }
 
-func (e MessageStatusEG) Cast(evt MessageEvent) ExternalEvent {
+func (e *messagingEG) Cast(evt MessageEvent) ExternalEvent {
 	var payload string
 	switch p:= evt.Payload().(type) {
 	case entity.ID:
@@ -91,20 +91,9 @@ func (e MessageStatusEG) Cast(evt MessageEvent) ExternalEvent {
 	default:
 		return nil
 	}
-	msgEvent := NewExternalEvent(evt.Name(), Group, e.Actions[evt.Action()], payload)
+	msgEvent := NewExternalEvent(evt.Name(), MessageGroup, e.Actions[evt.Action()], payload)
 	return msgEvent
 
-}
-
-func mapkey(m map[entity.Status]string, value string) (key entity.Status, ok bool) {
-	for k, v := range m {
-		if v == value {
-			key = k
-			ok = true
-			return
-		}
-	}
-	return
 }
 
 func EmitMessageChange(bus event.Bus, status entity.Status, msgID string) {

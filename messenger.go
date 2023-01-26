@@ -85,13 +85,13 @@ func (m *Messenger) Start() {
 		}
 	}
 
-	sub, err := m.bus.Subscribe(new(event.MessageEventObj))
+	msgSub, err := m.bus.Subscribe(new(event.MessageEventObj))
 	if err != nil {
 		panic(err)
 	}
 	go func() {
-		defer sub.Close()
-		for e := range sub.Out() {
+		defer msgSub.Close()
+		for e := range msgSub.Out() {
 			evt := e.(event.MessageEventObj)
 			switch msg := e.(event.MessageEventObj).Payload().(type) {
 			case entity.ID:
@@ -100,6 +100,24 @@ func (m *Messenger) Start() {
 				}
 			case entity.Message:
 				m.messageHandler(msg)
+			}
+		}
+	}()
+
+	chatSub, err := m.bus.Subscribe(new(event.ChatEventObj))
+	if err != nil {
+		panic(err)
+	}
+	go func() {
+		defer chatSub.Close()
+		for e := range chatSub.Out() {
+			evt := e.(event.ChatEventObj)
+			switch evt.Action() {
+			case event.InviteReceived:
+				m.ChatAPI().Join(evt.Payload().(entity.ChatInfo))
+			case event.InviteSent:
+				// change Chat info so it keep track of chat request's
+				break;
 			}
 		}
 	}()

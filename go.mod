@@ -16,7 +16,6 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.8.2
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/multiformats/go-multiaddr v0.8.0
-	github.com/multiformats/go-varint v0.0.7
 	github.com/stretchr/testify v1.8.1
 	github.com/timshannon/badgerhold/v4 v4.0.2
 	google.golang.org/protobuf v1.28.1
@@ -97,6 +96,7 @@ require (
 	github.com/multiformats/go-multicodec v0.7.0 // indirect
 	github.com/multiformats/go-multihash v0.2.1 // indirect
 	github.com/multiformats/go-multistream v0.3.3 // indirect
+	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/onsi/ginkgo/v2 v2.6.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
