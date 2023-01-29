@@ -113,24 +113,13 @@ func TestGroup(t *testing.T) {
 		require.NoError(t, err)
 		members = append(members, *self.ToContact())
 	}
-	chat, err := msgrs[0].ChatAPI().New(core.NewChatOpt{Name: gpName, Members: members, Type: entity.Group})
+	chat, err := msgrs[0].ChatAPI().New(core.NewGroupChat(gpName, members))
 	require.NoError(t, err)
-	err = msgrs[0].ChatAPI().Invite(chat.ID,chat.Members)
+	err = msgrs[0].ChatAPI().Invite(chat.ID, chat.Members)
 	require.NoError(t, err)
 	time.Sleep(30 * time.Second)
 	msg, err := msgrs[0].ChatAPI().Send(chat.ID, "helllooooooo")
 	require.NoError(t, err)
-	// go func() {
-	// 	for {
-	// 		for _,v := range msgrs {
-	// 			_, err := v.ChatAPI().Send(chat.ID, "helllooooooo")
-	// 			require.NoError(t, err)
-	// 			time.Sleep(1 * time.Second)
-	// 		}
-
-	// 	}
-
-	// }()
 	time.Sleep(5 * time.Second)
 	for _, v := range msgrs[1:] {
 		_, err := v.ChatAPI().Message(msg.ID)

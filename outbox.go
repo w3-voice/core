@@ -5,14 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const Timeout = 60 * 5
 
 type DataItem struct{
-	nvp *entity.Envelop
+	nvp *Envelop
 	failed bool
 }
 type Data map[peer.ID][]DataItem
@@ -20,7 +19,7 @@ type Data map[peer.ID][]DataItem
 type outbox struct {
 	mux     sync.Mutex
 	data    Data
-	failed  chan *entity.Envelop
+	failed  chan *Envelop
 	bctx    context.Context
 	bcancel context.CancelFunc
 }
@@ -29,22 +28,22 @@ func newOutBox() *outbox {
 	return &outbox{
 		mux:     sync.Mutex{},
 		data:    make(Data),
-		failed:  make(chan *entity.Envelop),
+		failed:  make(chan *Envelop),
 		bctx:    nil,
 		bcancel: nil,
 	}
 }
 
-func (o *outbox) put(key peer.ID, val *entity.Envelop) {
+func (o *outbox) put(key peer.ID, val *Envelop) {
 	o.mux.Lock()
 	defer o.mux.Unlock()
 	o.data[key] = append(o.data[key], DataItem{val, false})
 	o.mayStart()
 }
 
-func (o *outbox) pop(key peer.ID) []*entity.Envelop {
+func (o *outbox) pop(key peer.ID) []*Envelop {
 	o.mux.Lock()
-	var msgs []*entity.Envelop
+	var msgs []*Envelop
 	da, ok := o.data[key]
 	if ok {
 		delete(o.data, key)

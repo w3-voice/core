@@ -26,13 +26,13 @@ type DirectMessaging struct {
 	host       host.Host
 	connector  Connector
 	backoff    bf.BackoffFactory
-	input      chan *entity.Envelop
+	input      chan *Envelop
 	outbox     *outbox
 	bus        Bus
 }
 
 // NewDirectMessaging creates a Direct messaging service
-func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *entity.Envelop) DirectService {
+func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *Envelop) DirectService {
 	dms := &DirectMessaging{}
 	var err error
 	dms.bus = ebus
@@ -58,12 +58,12 @@ func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *
 	return dms
 }
 
-func (c *DirectMessaging) Send(nvlop *entity.Envelop) {
+func (c *DirectMessaging) Send(nvlop *Envelop) {
 	c.input <- nvlop
 }
 
 // openStreamAndSend opens an stream and send proto message of envelop
-func (c *DirectMessaging) openStreamAndSend(nvlop *entity.Envelop) error {
+func (c *DirectMessaging) openStreamAndSend(nvlop *Envelop) error {
 	log.Debug("open stream and send")
 	nctx := network.WithUseTransient(context.Background(), "just a chat")
 	pi := nvlop.PeerID()
@@ -82,7 +82,7 @@ func (c *DirectMessaging) openStreamAndSend(nvlop *entity.Envelop) error {
 }
 
 
-func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *entity.Envelop) {
+func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *Envelop) {
 	for {
 		select {
 		case m := <-c.outbox.failed:
@@ -139,7 +139,7 @@ func (c *DirectMessaging) Stop() {
 	c.host.RemoveStreamHandler(direct.ID)
 }
 
-func (c *DirectMessaging) sendCompleted(nvlop *entity.Envelop) {
+func (c *DirectMessaging) sendCompleted(nvlop *Envelop) {
 	switch  msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Sent, string(msg.ID))
@@ -147,7 +147,7 @@ func (c *DirectMessaging) sendCompleted(nvlop *entity.Envelop) {
 	c.connector.Done(string(nvlop.Protocol), nvlop.PeerID())
 }
 
-func (c *DirectMessaging) sendFailed(nvlop *entity.Envelop) {
+func (c *DirectMessaging) sendFailed(nvlop *Envelop) {
 	switch  msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Failed, string(msg.ID))
@@ -157,7 +157,7 @@ func (c *DirectMessaging) sendFailed(nvlop *entity.Envelop) {
 
 func (c *DirectMessaging) onConnected(pid peer.ID) {
 	msgs := c.outbox.pop(pid)
-	go func(msgs []*entity.Envelop) {
+	go func(msgs []*Envelop) {
 		for _, val := range msgs {
 			err := c.openStreamAndSend(val)
 			if err != nil {

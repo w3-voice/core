@@ -71,7 +71,7 @@ func (m *Messenger) Start() {
 	m.Host = h
 	m.connector = NewConnector(h)
 	gpCh := make(chan string)
-	m.pms = NewDirectMessaging(h, m.bus, m.connector,make(chan*entity.Envelop))
+	m.pms = NewDirectMessaging(h, m.bus, m.connector,make(chan*Envelop))
 	m.gps = NewGPService(context.Background(),h,m.IdentityAPI(),m.bus,gpCh,m.connector)
 	m.chat = NewChatAPI(m.store, m.book, m.pms, m.gps,m.identity)
 
