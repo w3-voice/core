@@ -17,7 +17,7 @@ func NewContactBook(store *st.Store) ContactBookAPI {
 	return &ContactBook{rp.NewContactRepo(store)}
 }
 
-func (c *ContactBook) List(skip int, limit int) ([]entity.Contact, error) {
+func (c *ContactBook) List(skip int, limit int) (entity.ContactSlice, error) {
 	rContact := c.repo
 	opt := rp.NewOption(skip, limit)
 	return rContact.GetAll(opt)

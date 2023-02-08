@@ -5,97 +5,116 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-const Timeout = 60 * 5
+type Data map[peer.ID]map[string]Expiry
 
-type DataItem struct{
-	nvp *entity.Envelop
-	failed bool
+func (d Data) Add(key peer.ID, val Expiry) {
+	if mp, ok := d[key]; !ok { 
+		m := make(map[string]Expiry)
+		m[val.id()] = val
+		d[key] = m
+	} else {
+		mp[val.id()] = val
+	}
 }
-type Data map[peer.ID][]DataItem
+
+type Config struct {
+	// Keep the envelop after timeout
+	Keep bool
+
+	// How long it take to fail an envelop
+	Timeout time.Duration
+
+	// duration of Ticker
+	Interval time.Duration
+}
 
 type outbox struct {
+	conf    Config
 	mux     sync.Mutex
-	data    Data
-	failed  chan *entity.Envelop
-	bctx    context.Context
-	bcancel context.CancelFunc
+	active  Data
+	passive Data
+	failed  chan Expiry
+	ticker  *time.Ticker
+	paused  bool
 }
 
-func newOutBox() *outbox {
-	return &outbox{
+func NewOutBox(ctx context.Context, conf Config) OutBox {
+	o := &outbox{
+		conf:    conf,
 		mux:     sync.Mutex{},
-		data:    make(Data),
-		failed:  make(chan *entity.Envelop),
-		bctx:    nil,
-		bcancel: nil,
+		active:  make(Data),
+		passive: make(Data),
+		failed:  make(chan Expiry),
+		paused:  true,
+		ticker:  time.NewTicker(1 * time.Second),
 	}
+	o.ticker.Stop()
+	go o.background(ctx)
+	return o
 }
 
-func (o *outbox) put(key peer.ID, val *entity.Envelop) {
+func (o *outbox) Put(key peer.ID, val Expiry) {
 	o.mux.Lock()
 	defer o.mux.Unlock()
-	o.data[key] = append(o.data[key], DataItem{val, false})
-	o.mayStart()
+	o.active.Add(key, val)
+	o.adjustTicker()
 }
 
-func (o *outbox) pop(key peer.ID) []*entity.Envelop {
+func (o *outbox) Pop(key peer.ID) []Expiry {
 	o.mux.Lock()
-	var msgs []*entity.Envelop
-	da, ok := o.data[key]
-	if ok {
-		delete(o.data, key)
+	var msgs []Expiry
+	for _, v := range []Data{o.active, o.passive} {
+		da, ok := v[key]
+		if ok {
+			delete(v, key)
+		}
+		for _, v := range da {
+			msgs = append(msgs, v)
+		}
 	}
-	for _,v := range da {
-		msgs = append(msgs, v.nvp)
-	}
-	o.mux.Unlock()
 
-	o.mayStop()
+	o.mux.Unlock()
+	o.adjustTicker()
 	return msgs
 }
 
-func (o *outbox) mayStart() {
-	if o.bctx == nil {
-		o.bctx, o.bcancel = context.WithCancel(context.Background())
-		go o.background(o.bctx)
-	}
-
+func (o *outbox) C() chan Expiry {
+	return o.failed
 }
 
-func (o *outbox) mayStop() {
-	o.mux.Lock()
-	defer o.mux.Unlock()
-	if len(o.data) == 0 && o.bctx != nil {
-		o.bcancel()
-		o.bctx = nil
-		o.bcancel = nil
+func (o *outbox) adjustTicker() {
+	if o.paused && len(o.active) > 0 {
+		o.paused = false
+		o.ticker.Reset(o.conf.Interval)
+		return
+	}
+	if !o.paused && len(o.active) == 0 {
+		o.paused = true
+		o.ticker.Stop()
 	}
 }
 
 func (o *outbox) background(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute)
 	for {
 		select {
-		case t := <-ticker.C:
+		case t := <-o.ticker.C:
 			o.mux.Lock()
-			tmp := make(Data)
-			for k, v := range o.data {
-				for _, m := range v {
-					if m.nvp.CreatedAt+(Timeout) <= t.UTC().Unix() && !m.failed {
-						o.failed <- m.nvp
+			for k, v := range o.active {
+				for sk, sm := range v {
+					if t.After(sm.createdAt().Add(o.conf.Timeout)) {
+						delete(v, sk)
+						o.failed <- sm
+						o.passive.Add(k, sm)
 					}
-					tmp[k] = append(tmp[k], m)
 				}
 			}
-			o.data = tmp
 			o.mux.Unlock()
-			o.mayStop()
-		case e:=<-ctx.Done():
-			log.Error("context error broke sender",e)
+			o.adjustTicker()
+		case e := <-ctx.Done():
+			log.Error("context error broke sender", e)
 			return
 		}
 

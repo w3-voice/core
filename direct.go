@@ -8,8 +8,7 @@ import (
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/event"
 	"github.com/hood-chat/core/pb"
-	"github.com/hood-chat/core/protocol/message"
-	"github.com/hood-chat/core/protocol/invite"
+	pl "github.com/hood-chat/core/protocol"
 	"github.com/libp2p/go-libp2p/core/host"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -26,24 +25,24 @@ type DirectMessaging struct {
 	host       host.Host
 	connector  Connector
 	backoff    bf.BackoffFactory
-	input      chan *entity.Envelop
-	outbox     *outbox
+	input      chan *Envelop
+	outbox     OutBox
 	bus        Bus
 }
 
 // NewDirectMessaging creates a Direct messaging service
-func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *entity.Envelop) DirectService {
+func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *Envelop) DirectService {
 	dms := &DirectMessaging{}
 	var err error
 	dms.bus = ebus
 	dms.host = h
 	// register message protocol
-	direct.SetMessageHandler(h, dms.messageHandler)
+	pl.Message.SetHandler(h, dms.messageHandler)
 	// register invite protocol
-	invite.SetInviteHandler(h, dms.inviteHandler)
+	pl.Invite.SetHandler(h, dms.inviteHandler)
 	log.Debug("service PMS created")
 	dms.input = input
-	dms.outbox = newOutBox()
+	dms.outbox = NewOutBox(context.Background(),Config{true, 5 * time.Minute, 1 * time.Minute})
 	dms.backoff = bf.NewPolynomialBackoff(time.Second*5, time.Second*10, bf.NoJitter, time.Second, []float64{5, 7, 10}, rand.NewSource(0))
 	dms.connector = connector
 	// set static relay as needed connection
@@ -52,18 +51,18 @@ func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *
 		panic("failed to create message service: "+ err.Error())
 	}
 	relayInfo.Addrs = []ma.Multiaddr{}
-	dms.connector.Need(direct.ServiceName, *relayInfo)
+	dms.connector.Need(pl.Message.GetMeta().ServiceName, *relayInfo)
 	dms.host.Network().Notify((*dmsNotifiee)(dms))
 	go dms.background(context.Background(), dms.input)
 	return dms
 }
 
-func (c *DirectMessaging) Send(nvlop *entity.Envelop) {
+func (c *DirectMessaging) Send(nvlop *Envelop) {
 	c.input <- nvlop
 }
 
 // openStreamAndSend opens an stream and send proto message of envelop
-func (c *DirectMessaging) openStreamAndSend(nvlop *entity.Envelop) error {
+func (c *DirectMessaging) openStreamAndSend(nvlop *Envelop) error {
 	log.Debug("open stream and send")
 	nctx := network.WithUseTransient(context.Background(), "just a chat")
 	pi := nvlop.PeerID()
@@ -72,7 +71,7 @@ func (c *DirectMessaging) openStreamAndSend(nvlop *entity.Envelop) error {
 		log.Error("send failed", err)
 		return err
 	}
-	err = direct.Send(s, nvlop.Message.Proto())
+	err = pl.Message.Send(s, nvlop.Message.Proto().(*pb.Message))
 	if err != nil {
 		log.Error("send failed",err)
 		return err
@@ -82,11 +81,11 @@ func (c *DirectMessaging) openStreamAndSend(nvlop *entity.Envelop) error {
 }
 
 
-func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *entity.Envelop) {
+func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *Envelop) {
 	for {
 		select {
-		case m := <-c.outbox.failed:
-			c.sendFailed(m)
+		case m := <-c.outbox.C():
+			c.sendFailed(m.(*Envelop))
 		case nvlp := <-nvlpCh:
 			h := c.host
 
@@ -112,11 +111,11 @@ func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *entity.
 			case network.Connected:
 				err := c.openStreamAndSend(nvlp)
 				if err != nil {
-					c.outbox.put(pi.ID, nvlp)
+					c.outbox.Put(pi.ID, nvlp)
 				}
 
 			default:
-				c.outbox.put(pi.ID, nvlp)
+				c.outbox.Put(pi.ID, nvlp)
 			}
 		case e:= <-ctx.Done():
 			log.Errorf("context error broke sender %v", e)
@@ -131,15 +130,15 @@ func (c *DirectMessaging) messageHandler(msg *pb.Message) {
 }
 
 func (c *DirectMessaging) inviteHandler(msg *pb.Request) {
-	log.Debugf("invite received %s", msg.Id)
+	log.Debugf("invite received %s, name %s", msg.Id,msg.Name)
 	event.EmitInvite(c.bus, event.InviteReceived, entity.ToChatInfo(msg))
 }
 
 func (c *DirectMessaging) Stop() {
-	c.host.RemoveStreamHandler(direct.ID)
+	c.host.RemoveStreamHandler(pl.Message.ID())
 }
 
-func (c *DirectMessaging) sendCompleted(nvlop *entity.Envelop) {
+func (c *DirectMessaging) sendCompleted(nvlop *Envelop) {
 	switch  msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Sent, string(msg.ID))
@@ -147,7 +146,7 @@ func (c *DirectMessaging) sendCompleted(nvlop *entity.Envelop) {
 	c.connector.Done(string(nvlop.Protocol), nvlop.PeerID())
 }
 
-func (c *DirectMessaging) sendFailed(nvlop *entity.Envelop) {
+func (c *DirectMessaging) sendFailed(nvlop *Envelop) {
 	switch  msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Failed, string(msg.ID))
@@ -156,12 +155,12 @@ func (c *DirectMessaging) sendFailed(nvlop *entity.Envelop) {
 }
 
 func (c *DirectMessaging) onConnected(pid peer.ID) {
-	msgs := c.outbox.pop(pid)
-	go func(msgs []*entity.Envelop) {
+	msgs := c.outbox.Pop(pid)
+	go func(msgs []Expiry) {
 		for _, val := range msgs {
-			err := c.openStreamAndSend(val)
+			err := c.openStreamAndSend(val.(*Envelop))
 			if err != nil {
-				c.outbox.put(pid, val)
+				c.outbox.Put(pid, val)
 			}
 		}
 	}(msgs)

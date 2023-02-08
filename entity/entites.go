@@ -7,12 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hood-chat/core/pb"
-	"github.com/hood-chat/core/protocol/message"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 type Status int
@@ -37,9 +33,9 @@ const (
 )
 
 type Identity struct {
-	ID      ID
-	Name    string
-	PrivKey string
+	ID      ID			`json:"_id"`
+	Name    string		`json:"name"`
+	PrivKey string		`json:"-"`
 }
 
 func (c Identity) PeerID() (peer.ID, error) {
@@ -60,7 +56,7 @@ func (i *Identity) DecodePrivateKey(passphrase string) (crypto.PrivKey, error) {
 
 func (i *Identity) ToContact() *Contact {
 	return &Contact{
-		ID: i.ID,
+		ID:   i.ID,
 		Name: i.Name,
 	}
 }
@@ -100,63 +96,24 @@ func CreateIdentity(name string) (Identity, error) {
 	return ident, nil
 }
 
-type ProtoMessage interface {
-	Proto() proto.Message
-}
-
+var _ JsonMessage = (*Message)(nil)
 
 type Message struct {
-	ID        ID
-	ChatID    ID
-	CreatedAt int64
-	Text      string
-	Status    Status
-	Author    Contact
-	ChatType  ChatType
-}
-
-func (m Message) Proto() proto.Message {
-	msg := m
-	return &pb.Message{
-		Text:      msg.Text,
-		Id:        msg.ID.String(),
-		ChatId:    msg.ChatID.String(),
-		CreatedAt: msg.CreatedAt,
-		Type:      "text",
-		Sig:       "",
-		Author: &pb.Contact{
-			Id:   msg.Author.ID.String(),
-			Name: msg.Author.Name,
-		},
-		ChatType: pb.CHAT_TYPES(msg.ChatType),
-	}
-}
-
-func ToMessage(pbmsg *pb.Message) Message {
-	mAuthorID := ID(pbmsg.Author.Id)
-	msgID := ID(pbmsg.GetId())
-	chatID := ID(pbmsg.ChatId)
-	con := Contact{
-		ID:   mAuthorID,
-		Name: pbmsg.Author.Name,
-	}
-	return Message{
-		ID:        msgID,
-		ChatID:    chatID,
-		CreatedAt: pbmsg.GetCreatedAt(),
-		Text:      pbmsg.GetText(),
-		Status:    Received,
-		Author:    con,
-		ChatType:  ChatType(pbmsg.ChatType),
-	}
+	ID        ID			`json:"_id"`
+	ChatID    ID			`json:"chatId"`
+	CreatedAt int64			`json:"createdAt"`
+	Text      string		`json:"text"`
+	Status    Status		`json:"status"`
+	Author    Contact		`json:"user"`
+	ChatType  ChatType		`json:"chatType"`
 }
 
 type Contact struct {
-	ID   ID
-	Name string
+	ID   ID			`json:"_id"`
+	Name string		`json:"name"`
 }
 
-func (c Contact) AdderInfo() (*peer.AddrInfo, error){
+func (c Contact) AdderInfo() (*peer.AddrInfo, error) {
 	p, err := c.PeerID()
 	if err != nil {
 		return nil, err
@@ -168,81 +125,22 @@ func (c Contact) PeerID() (peer.ID, error) {
 	return peer.Decode(string(c.ID))
 }
 
-type Envelop struct {
-	To        Contact
-	Message   ProtoMessage
-	ID        string
-	CreatedAt int64
-	Protocol  protocol.ID
-}
-
-func (e Envelop) PeerID() peer.ID {
-	pi, _ := e.To.PeerID()
-	return pi
-}
-
-type PubSubEnvelop struct {
-	Topic     string
-	Message   ProtoMessage
-}
-
-func NewMessageEnvelop(c Contact, m Message) (*Envelop, error) {
-	_, err := c.PeerID()
-	if err != nil {
-		return nil, err
-	}
-	return &Envelop{
-		To: c,
-		Message: m,
-		ID: m.ID.String(),
-		CreatedAt: m.CreatedAt,
-		Protocol: direct.ID,
-	}, nil
-}
-
+var _ JsonMessage = (*ChatInfo)(nil)
 
 type ChatInfo struct {
-	ID          ID
-	Name        string
-	Members     []Contact
-	Type        ChatType
-	Unread      uint64
-	LatestText  string
-	Admins      []Contact
-}
-
-func ToChatInfo(pbmsg *pb.Request) ChatInfo {
-	ci := new(ChatInfo)
-	ci.ID = ID(pbmsg.Id)
-	ci.Name = pbmsg.Name
-	for _,v := range pbmsg.Members {
-		ci.Members = append(ci.Members, Contact{ID(v.Id),v.Name})
-	}
-	for _,v := range pbmsg.Admins {
-		ci.Admins = append(ci.Admins, Contact{ID(v.Id),v.Name})
-	}
-	return *ci
-}
-
-func (m ChatInfo) Proto() proto.Message {
-	r := &pb.Request{
-		Id: m.ID.String(),
-		ChatType: pb.CHAT_TYPES(m.Type),
-	}
-	for _,v := range m.Members {
-		r.Members = append(r.Members, &pb.Contact{Name:v.Name, Id: v.ID.String()})
-	}
-	for _,v := range m.Admins {
-		r.Admins = append(r.Admins, &pb.Contact{Name:v.Name, Id: v.ID.String()})
-	}
-	return r
+	ID         ID			`json:"_id"`
+	Name       string		`json:"name"`
+	Members    []Contact	`json:"members"`
+	Admins     []Contact	`json:"admins"`
+	Type       ChatType		`json:"type"`
+	Unread     uint64		`json:"unread"`
+	LatestText string		`json:"latestText"`
 }
 
 func NewPrivateChat(creator Contact, con Contact) ChatInfo {
 	chatID := generatePMChatID(con, creator)
 	return ChatInfo{ID: chatID, Name: con.Name, Members: []Contact{creator, con}, Type: Private}
 }
-
 
 func generatePMChatID(creator Contact, con Contact) ID {
 	cons := []string{con.ID.String(), creator.ID.String()}

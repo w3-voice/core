@@ -64,7 +64,7 @@ func (s *GPService) OnlinePeers(chatID string) []peer.ID {
 	return s.ps.ListPeers(topicName(s.rooms[chatID].roomName))
 }
 
-func (s *GPService) Send(n entity.PubSubEnvelop) {
+func (s *GPService) Send(n PubSubEnvelop) {
 	room, pres := s.rooms[n.Topic]
 	switch n.Message.(type) {
 	case entity.Message:

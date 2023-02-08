@@ -1,17 +1,17 @@
 package event
 
 import (
-	"encoding/json"
-
 	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 )
 
-const MessageGroup = "messaging"
+const MessageGroup = "Messaging"
+
 type Empty struct{}
+
 const ChangeStatus = "ChangeStatus"
-const NewMessage   = "NewMessage"
+const NewMessage = "NewMessage"
 
 type MessageEvent = IEvent[entity.Status, interface{}]
 type MessageEventGroup = IEventGroup[entity.Status, interface{}]
@@ -26,14 +26,14 @@ type messagingEG struct {
 	Names   map[string]Empty
 }
 
-func NewMessagingEventGroup() MessageEventGroup {
+func NewMessagingEventGroup() *messagingEG {
 	return &messagingEG{
 		Actions: map[entity.Status]string{
-			entity.Seen:     "seen",
-			entity.Sent:     "sent",
-			entity.Pending:  "pending",
-			entity.Received: "received",
-			entity.Failed:   "failed",
+			entity.Seen:     "Seen",
+			entity.Sent:     "Sent",
+			entity.Pending:  "Pending",
+			entity.Received: "Received",
+			entity.Failed:   "Failed",
 		},
 		Names: map[string]Empty{
 			ChangeStatus: {},
@@ -66,38 +66,19 @@ func (e *messagingEG) NewEvent(name string, action entity.Status, payload interf
 }
 
 func (e *messagingEG) Validate(evt MessageEvent) bool {
-	if evt.Group() != MessageGroup {
+	if evt.GetGroup() != MessageGroup {
 		return false
 	}
-	_, pres := e.Names[evt.Name()]
+	_, pres := e.Names[evt.GetName()]
 	if !pres {
 		return false
 	}
-	_, pres = e.Actions[evt.Action()]
+	_, pres = e.Actions[evt.GetAction()]
 	return pres
 }
 
-func (e *messagingEG) Cast(evt MessageEvent) ExternalEvent {
-	var payload string
-	switch p:= evt.Payload().(type) {
-	case entity.ID:
-		payload = p.String()
-	case entity.Message:
-		b, err := json.Marshal(p)
-		if err != nil {
-			return nil
-		}
-		payload = string(b)
-	default:
-		return nil
-	}
-	msgEvent := NewExternalEvent(evt.Name(), MessageGroup, e.Actions[evt.Action()], payload)
-	return msgEvent
-
-}
-
 func EmitMessageChange(bus event.Bus, status entity.Status, msgID string) {
-	emitter, err := bus.Emitter(new(MessageEventObj), 	eventbus.Stateful)
+	emitter, err := bus.Emitter(new(MessageEventObj), eventbus.Stateful)
 	if err != nil {
 		panic("bus has problem")
 	}
@@ -113,7 +94,7 @@ func EmitMessageChange(bus event.Bus, status entity.Status, msgID string) {
 }
 
 func EmitNewMessage(bus event.Bus, msg entity.Message) {
-	emitter, err := bus.Emitter(new(MessageEventObj), 	eventbus.Stateful)
+	emitter, err := bus.Emitter(new(MessageEventObj), eventbus.Stateful)
 	if err != nil {
 		panic("bus has problem")
 	}

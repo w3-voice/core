@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -8,7 +10,7 @@ import (
 // provide api for managing contacts
 type ContactBookAPI interface {
 	// return list of contact
-	List(skip int, limit int) ([]entity.Contact, error)
+	List(skip int, limit int) (entity.ContactSlice, error)
 	// return a contact by id
 	Get(id entity.ID) (entity.Contact, error)
 	// create or update contact
@@ -26,15 +28,15 @@ type IdentityAPI interface {
 // provide api to use chat
 type ChatAPI interface {
 	ChatInfo(id entity.ID) (entity.ChatInfo, error)
-	ChatInfos(skip int, limit int) ([]entity.ChatInfo, error)
+	ChatInfos(skip int, limit int) (entity.ChatSlice, error)
 	Join(entity.ChatInfo) error
-	Find(opt SearchChatOpt) ([]entity.ChatInfo, error)
+	Find(opt SearchChatOpt) (entity.ChatSlice, error)
 	New(opt NewChatOpt) (entity.ChatInfo, error)
 	Send(chatID entity.ID, content string) (*entity.Message, error)
 	Seen(chatID entity.ID) error
 	Message(ID entity.ID) (entity.Message, error)
-	Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error)
-	Invite(chID entity.ID, cons []entity.Contact) error
+	Messages(chatID entity.ID, skip int, limit int) (entity.MessageSlice, error)
+	Invite(chID entity.ID, cons entity.ContactSlice) error
 	updateMessageStatus(msgID entity.ID, status entity.Status) error
 	received(msg entity.Message) error
 }
@@ -49,42 +51,27 @@ type MessengerAPI interface {
 }
 
 
-type SearchChatOpt struct {
-	Name    string
-	Members []entity.ID
-	Type    entity.ChatType
-}
 
-func WithPrivateChatContact(contactID entity.ID) SearchChatOpt {
-	return SearchChatOpt{"", []entity.ID{contactID}, entity.Private}
-}
-
-
-type NewChatOpt struct {
-	Name    string
-	Members []entity.Contact
-	Type    entity.ChatType
-}
-
-func NewPrivateChat(contact entity.Contact) NewChatOpt {
-	return NewChatOpt{"", []entity.Contact{contact}, entity.Private}
-}
 
 type DirectService interface {
-	Send(nvlop *entity.Envelop)
+	Send(nvlop *Envelop)
 	Stop()
 }
 
 type PubSubService interface {
-	Send(entity.PubSubEnvelop)
+	Send(PubSubEnvelop)
 	Stop()
 	Join(chatId entity.ID, members []entity.Contact)
 }
 
-type ChatRequest struct {
-	ID          entity.ID
-	Name        string
-	Members     []entity.Contact
-	Type        entity.ChatType
-	Admins      []entity.Contact
+type OutBox interface {
+	Put(key peer.ID, val Expiry)
+	Pop(key peer.ID) []Expiry
+	// expired item channel
+	C() chan Expiry
+}
+
+type Expiry interface {
+	id() string
+	createdAt() time.Time
 }

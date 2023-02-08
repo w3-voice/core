@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hood-chat/core/entity"
-	"github.com/hood-chat/core/protocol/invite"
+	"github.com/hood-chat/core/protocol"
 	rp "github.com/hood-chat/core/repo"
 	st "github.com/hood-chat/core/store"
 )
@@ -41,7 +41,7 @@ func (c *Chat) ChatInfo(id entity.ID) (entity.ChatInfo, error) {
 	return chat, nil
 }
 
-func (c *Chat) ChatInfos(skip int, limit int) ([]entity.ChatInfo, error) {
+func (c *Chat) ChatInfos(skip int, limit int) (entity.ChatSlice, error) {
 	rChat := c.chRepo
 	opt := rp.NewOption(skip, limit)
 	return rChat.GetAll(opt)
@@ -54,14 +54,14 @@ func (c *Chat) New(opt NewChatOpt) (entity.ChatInfo, error) {
 		return entity.ChatInfo{}, err
 	}
 
-	switch opt.Type {
+	switch *opt.Type {
 	case entity.Private:
 		chat := entity.NewPrivateChat(opt.Members[0], *me.ToContact())
 		err = c.chRepo.Add(chat)
 		return chat, err
 	case entity.Group:
 		members := append(opt.Members, *me.ToContact())
-		chat := entity.NewGroupChat(opt.Name, members, []entity.Contact{*me.ToContact()})
+		chat := entity.NewGroupChat(*opt.Name, members, []entity.Contact{*me.ToContact()})
 		err := c.chRepo.Add(chat)
 		c.gps.Join(chat.ID, members)
 		return chat, err
@@ -71,7 +71,7 @@ func (c *Chat) New(opt NewChatOpt) (entity.ChatInfo, error) {
 
 }
 
-func (c *Chat) Messages(chatID entity.ID, skip int, limit int) ([]entity.Message, error) {
+func (c *Chat) Messages(chatID entity.ID, skip int, limit int) (entity.MessageSlice, error) {
 	opt := rp.NewOption(skip, limit)
 	opt.AddFilter("ChatID", string(chatID))
 	return c.mRepo.GetAll(opt)
@@ -81,8 +81,8 @@ func (c *Chat) Message(ID entity.ID) (entity.Message, error) {
 	return c.mRepo.GetByID(ID)
 }
 
-func (c *Chat) Find(opt SearchChatOpt) ([]entity.ChatInfo, error) {
-	if opt.Type == entity.Private {
+func (c *Chat) Find(opt SearchChatOpt) (entity.ChatSlice, error) {
+	if *opt.Type == entity.Private {
 		contactID := opt.Members[0]
 		con, err := c.book.Get(contactID)
 		if err != nil {
@@ -136,14 +136,14 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 		for _, to := range chat.Members {
 			if to.ID != msg.Author.ID {
 				log.Debugf("outbox message")
-			    n,_ := entity.NewMessageEnvelop(to, msg)
+			    n,_ := NewMessageEnvelop(to, msg)
 				c.pms.Send(n)
 				log.Debugf("outboxed message")
 			}
 		}
 		return &msg, nil
 	case entity.Group:
-		c.gps.Send(entity.PubSubEnvelop{Topic: chatID.String(), Message: msg})
+		c.gps.Send(PubSubEnvelop{Topic: chatID.String(), Message: msg})
 		return &msg, nil
 	default:
 		return nil, errors.New("Chat type not supported")
@@ -157,9 +157,9 @@ func (c Chat) received(msg entity.Message) error {
 	if err != nil {
 		log.Errorf("can not find chat %s", err.Error())
 		opt := NewChatOpt{
-			msg.Author.Name,
+			&msg.Author.Name,
 			[]entity.Contact{msg.Author},
-			entity.Private,
+			Of(entity.Private),
 		}
 		_, err = c.New(opt)
 		if err != nil {
@@ -205,13 +205,13 @@ func (c *Chat) Join(ci entity.ChatInfo) error {
 	return nil
 }
 
-func (c *Chat) Invite(chatID entity.ID, cons []entity.Contact) error {
+func (c *Chat) Invite(chatID entity.ID, cons entity.ContactSlice) error {
 	chat, err := c.chRepo.GetByID(chatID)
 	if err != nil {
 		return err
 	}
 	for _, con := range cons {
-		c.pms.Send(&entity.Envelop{To: con,Message: chat,ID: chat.ID.String(),CreatedAt: time.Now().Unix(),Protocol: invite.ID})
+		c.pms.Send(&Envelop{To: con,Message: chat,ID: chat.ID.String(),CreatedAt: time.Now().Unix(),Protocol: protocol.Invite.ID()})
 	}
 	return nil
 }

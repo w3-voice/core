@@ -9,11 +9,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-var _ IdentityAPI = (*Identity)(nil)
+var _ IdentityAPI = (*identityAPI)(nil)
 
 type IdentityRepo = rp.IRepo[entity.Identity]
 
-type Identity struct {
+type identityAPI struct {
 	repo      rp.IRepo[entity.Identity]
 	identity  *entity.Identity
 }
@@ -22,16 +22,16 @@ func NewIdentityAPI(store *st.Store) IdentityAPI {
 	repo := rp.NewIdentityRepo(store)
 	identity, err := repo.Get()
 	if err != nil {
-		return &Identity{repo, nil}
+		return &identityAPI{repo, nil}
 	}
-	return &Identity{repo, &identity}
+	return &identityAPI{repo, &identity}
 }
 
-func (i *Identity) IsLogin() bool {
+func (i *identityAPI) IsLogin() bool {
 	return i.identity != nil
 }
 
-func (i *Identity) SignUp(name string) (*entity.Identity, error) {
+func (i *identityAPI) SignUp(name string) (*entity.Identity, error) {
 	rIdentity := i.repo
 	iden, err := entity.CreateIdentity(name)
 	if err != nil {
@@ -45,14 +45,14 @@ func (i *Identity) SignUp(name string) (*entity.Identity, error) {
 	return &iden, nil
 }
 
-func (i *Identity) Get() (entity.Identity, error) {
+func (i *identityAPI) Get() (entity.Identity, error) {
 	if i.identity==nil {
 		return entity.Identity{}, errors.New("Not Login")
 	}
 	return *i.identity, nil
 }
 
-func (i *Identity) PeerID() (peer.ID, error) {
+func (i *identityAPI) PeerID() (peer.ID, error) {
 	if i.identity==nil {
 		return peer.ID(""), errors.New("Not Login")
 	}
