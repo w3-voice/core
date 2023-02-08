@@ -74,11 +74,13 @@ func (c *connector) mayStop() {
 }
 
 func (c *connector) connect(p peer.AddrInfo) {
+	log.Debugf("try connecting to %s", p)
 	if c.h.Network().Connectedness(p.ID) != network.Connected {
 		go func(pi peer.AddrInfo) {
 			err := c.h.Connect(context.Background(), pi)
 			if err != nil {
 				c.needed.Failed(pi.ID)
+				log.Debugf("failed connecting to %s", p)
 				return
 			}
 		}(p)
