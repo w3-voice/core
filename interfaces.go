@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/hood-chat/core/entity"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -62,3 +64,14 @@ type PubSubService interface {
 	Join(chatId entity.ID, members []entity.Contact)
 }
 
+type OutBox interface {
+	Put(key peer.ID, val Expiry)
+	Pop(key peer.ID) []Expiry
+	// expired item channel
+	C() chan Expiry
+}
+
+type Expiry interface {
+	id() string
+	createdAt() time.Time
+}
