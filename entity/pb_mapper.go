@@ -55,11 +55,13 @@ func ToChatInfo(pbmsg *pb.Request) ChatInfo {
 	for _,v := range pbmsg.Admins {
 		ci.Admins = append(ci.Admins, Contact{ID(v.Id),v.Name})
 	}
+	ci.Type = ChatType(pbmsg.ChatType)
 	return *ci
 }
 
 func (m ChatInfo) Proto() proto.Message {
 	r := &pb.Request{
+		Name: m.Name,
 		Id: m.ID.String(),
 		ChatType: pb.CHAT_TYPES(m.Type),
 	}
