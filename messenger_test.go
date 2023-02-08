@@ -51,7 +51,7 @@ func TestMessenger(t *testing.T) {
 	_, err = mr1.ChatAPI().Send(chat1.ID, "hello")
 	require.NoError(t, err)
 	t.Log("message sent")
-	time.Sleep(30 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	chat2, err := mr2.ChatAPI().ChatInfo(chat1.ID)
 	require.NoError(t, err)
@@ -120,9 +120,14 @@ func TestGroup(t *testing.T) {
 	time.Sleep(30 * time.Second)
 	msg, err := msgrs[0].ChatAPI().Send(chat.ID, "helllooooooo")
 	require.NoError(t, err)
+
 	time.Sleep(5 * time.Second)
 	for _, v := range msgrs[1:] {
-		_, err := v.ChatAPI().Message(msg.ID)
+		ch, err := v.ChatAPI().ChatInfo(chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, ch.Name, chat.Name)
+		t.Logf("%v = %v",chat,ch)
+		_, err = v.ChatAPI().Message(msg.ID)
 		require.NoError(t, err)
 	}
 
