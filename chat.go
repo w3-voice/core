@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hood-chat/core/entity"
-	"github.com/hood-chat/core/protocol/invite"
+	"github.com/hood-chat/core/protocol"
 	rp "github.com/hood-chat/core/repo"
 	st "github.com/hood-chat/core/store"
 )
@@ -211,7 +211,7 @@ func (c *Chat) Invite(chatID entity.ID, cons entity.ContactSlice) error {
 		return err
 	}
 	for _, con := range cons {
-		c.pms.Send(&Envelop{To: con,Message: chat,ID: chat.ID.String(),CreatedAt: time.Now().Unix(),Protocol: invite.ID})
+		c.pms.Send(&Envelop{To: con,Message: chat,ID: chat.ID.String(),CreatedAt: time.Now().Unix(),Protocol: protocol.Invite.ID()})
 	}
 	return nil
 }

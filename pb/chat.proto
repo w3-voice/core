@@ -31,3 +31,15 @@ message Request {
   repeated Contact admins = 4;
   string name = 5;
 }
+
+message ChatEvent {
+  enum Event {
+    Deliverd = 0;
+    Seen = 1;
+  }
+  string chatId = 1;
+  string msgId = 2;
+  Event  event = 3;
+}
+
+message Ack {}

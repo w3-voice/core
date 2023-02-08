@@ -66,6 +66,52 @@ func (CHAT_TYPES) EnumDescriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{0}
 }
 
+type ChatEvent_Event int32
+
+const (
+	ChatEvent_Deliverd ChatEvent_Event = 0
+	ChatEvent_Seen     ChatEvent_Event = 1
+)
+
+// Enum value maps for ChatEvent_Event.
+var (
+	ChatEvent_Event_name = map[int32]string{
+		0: "Deliverd",
+		1: "Seen",
+	}
+	ChatEvent_Event_value = map[string]int32{
+		"Deliverd": 0,
+		"Seen":     1,
+	}
+)
+
+func (x ChatEvent_Event) Enum() *ChatEvent_Event {
+	p := new(ChatEvent_Event)
+	*p = x
+	return p
+}
+
+func (x ChatEvent_Event) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ChatEvent_Event) Descriptor() protoreflect.EnumDescriptor {
+	return file_chat_proto_enumTypes[1].Descriptor()
+}
+
+func (ChatEvent_Event) Type() protoreflect.EnumType {
+	return &file_chat_proto_enumTypes[1]
+}
+
+func (x ChatEvent_Event) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ChatEvent_Event.Descriptor instead.
+func (ChatEvent_Event) EnumDescriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{3, 0}
+}
+
 type Message struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -303,6 +349,107 @@ func (x *Request) GetName() string {
 	return ""
 }
 
+type ChatEvent struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ChatId string          `protobuf:"bytes,1,opt,name=chatId,proto3" json:"chatId,omitempty"`
+	MsgId  string          `protobuf:"bytes,2,opt,name=msgId,proto3" json:"msgId,omitempty"`
+	Event  ChatEvent_Event `protobuf:"varint,3,opt,name=event,proto3,enum=ChatEvent_Event" json:"event,omitempty"`
+}
+
+func (x *ChatEvent) Reset() {
+	*x = ChatEvent{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ChatEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatEvent) ProtoMessage() {}
+
+func (x *ChatEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatEvent.ProtoReflect.Descriptor instead.
+func (*ChatEvent) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ChatEvent) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *ChatEvent) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *ChatEvent) GetEvent() ChatEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return ChatEvent_Deliverd
+}
+
+type Ack struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *Ack) Reset() {
+	*x = Ack{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Ack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Ack) ProtoMessage() {}
+
+func (x *Ack) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Ack.ProtoReflect.Descriptor instead.
+func (*Ack) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{4}
+}
+
 var File_chat_proto protoreflect.FileDescriptor
 
 var file_chat_proto_rawDesc = []byte{
@@ -333,10 +480,19 @@ var file_chat_proto_rawDesc = []byte{
 	0x20, 0x0a, 0x06, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32,
 	0x08, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x63, 0x74, 0x52, 0x06, 0x61, 0x64, 0x6d, 0x69, 0x6e,
 	0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x2a, 0x24, 0x0a, 0x0a, 0x43, 0x48, 0x41, 0x54, 0x5f, 0x54, 0x59,
-	0x50, 0x45, 0x53, 0x12, 0x0b, 0x0a, 0x07, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x10, 0x00,
-	0x12, 0x09, 0x0a, 0x05, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x10, 0x01, 0x42, 0x06, 0x5a, 0x04, 0x2e,
-	0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x82, 0x01, 0x0a, 0x09, 0x43, 0x68, 0x61, 0x74, 0x45, 0x76,
+	0x65, 0x6e, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x63, 0x68, 0x61, 0x74, 0x49, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x63, 0x68, 0x61, 0x74, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x6d,
+	0x73, 0x67, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6d, 0x73, 0x67, 0x49,
+	0x64, 0x12, 0x26, 0x0a, 0x05, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x10, 0x2e, 0x43, 0x68, 0x61, 0x74, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x2e, 0x45, 0x76, 0x65,
+	0x6e, 0x74, 0x52, 0x05, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x22, 0x1f, 0x0a, 0x05, 0x45, 0x76, 0x65,
+	0x6e, 0x74, 0x12, 0x0c, 0x0a, 0x08, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x64, 0x10, 0x00,
+	0x12, 0x08, 0x0a, 0x04, 0x53, 0x65, 0x65, 0x6e, 0x10, 0x01, 0x22, 0x05, 0x0a, 0x03, 0x41, 0x63,
+	0x6b, 0x2a, 0x24, 0x0a, 0x0a, 0x43, 0x48, 0x41, 0x54, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x53, 0x12,
+	0x0b, 0x0a, 0x07, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x10, 0x01, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -351,25 +507,29 @@ func file_chat_proto_rawDescGZIP() []byte {
 	return file_chat_proto_rawDescData
 }
 
-var file_chat_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_chat_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_chat_proto_goTypes = []interface{}{
-	(CHAT_TYPES)(0), // 0: CHAT_TYPES
-	(*Message)(nil), // 1: Message
-	(*Contact)(nil), // 2: Contact
-	(*Request)(nil), // 3: Request
+	(CHAT_TYPES)(0),      // 0: CHAT_TYPES
+	(ChatEvent_Event)(0), // 1: ChatEvent.Event
+	(*Message)(nil),      // 2: Message
+	(*Contact)(nil),      // 3: Contact
+	(*Request)(nil),      // 4: Request
+	(*ChatEvent)(nil),    // 5: ChatEvent
+	(*Ack)(nil),          // 6: Ack
 }
 var file_chat_proto_depIdxs = []int32{
-	2, // 0: Message.author:type_name -> Contact
+	3, // 0: Message.author:type_name -> Contact
 	0, // 1: Message.chatType:type_name -> CHAT_TYPES
 	0, // 2: Request.chatType:type_name -> CHAT_TYPES
-	2, // 3: Request.members:type_name -> Contact
-	2, // 4: Request.admins:type_name -> Contact
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	3, // 3: Request.members:type_name -> Contact
+	3, // 4: Request.admins:type_name -> Contact
+	1, // 5: ChatEvent.event:type_name -> ChatEvent.Event
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_chat_proto_init() }
@@ -414,14 +574,38 @@ func file_chat_proto_init() {
 				return nil
 			}
 		}
+		file_chat_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ChatEvent); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chat_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Ack); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chat_proto_rawDesc,
-			NumEnums:      1,
-			NumMessages:   3,
+			NumEnums:      2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -2,12 +2,13 @@ package core
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/hood-chat/core/entity"
-	"github.com/hood-chat/core/protocol/message"
+	"github.com/hood-chat/core/protocol"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
+	pl "github.com/libp2p/go-libp2p/core/protocol"
 )
 
 func Of[E any](e E) *E {
@@ -77,9 +78,15 @@ type Envelop struct {
 	Message   entity.ProtoMessage
 	ID        string
 	CreatedAt int64
-	Protocol  protocol.ID
+	Protocol  pl.ID
 }
 
+func (e Envelop) createdAt() time.Time {
+	return time.Unix(e.CreatedAt, 0)
+}
+func (e Envelop) id() string {
+	return e.ID
+}
 
 func (e Envelop) PeerID() peer.ID {
 	pi, _ := e.To.PeerID()
@@ -89,6 +96,11 @@ func (e Envelop) PeerID() peer.ID {
 type PubSubEnvelop struct {
 	Topic     string
 	Message   entity.ProtoMessage
+	CreatedAt int64
+}
+
+func (e PubSubEnvelop) createdAt(t time.Time) time.Time  {
+	return time.Unix(e.CreatedAt, 0)
 }
 
 func NewMessageEnvelop(c entity.Contact, m entity.Message) (*Envelop, error) {
@@ -101,6 +113,6 @@ func NewMessageEnvelop(c entity.Contact, m entity.Message) (*Envelop, error) {
 		Message: m,
 		ID: m.ID.String(),
 		CreatedAt: m.CreatedAt,
-		Protocol: direct.ID,
+		Protocol: protocol.Message.ID(),
 	}, nil
 }
