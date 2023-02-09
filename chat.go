@@ -21,14 +21,14 @@ type Chat struct {
 	mRepo    MessageRepo
 	book     ContactBookAPI
 	pms      DirectService
-	gps      PubSubService
+	// gps      PubSubService
 	Identity IdentityAPI
 }
 
-func NewChatAPI(store *st.Store, b ContactBookAPI, p DirectService, g PubSubService,i IdentityAPI) ChatAPI {
+func NewChatAPI(store *st.Store, b ContactBookAPI, p DirectService, i IdentityAPI) ChatAPI {
 	ch := rp.NewChatRepo(store)
 	m := rp.NewMessageRepo(store)
-	return &Chat{ch, m, b, p, g,i}
+	return &Chat{ch, m, b, p, i}
 }
 
 func (c *Chat) ChatInfo(id entity.ID) (entity.ChatInfo, error) {
@@ -63,7 +63,7 @@ func (c *Chat) New(opt NewChatOpt) (entity.ChatInfo, error) {
 		members := append(opt.Members, *me.ToContact())
 		chat := entity.NewGroupChat(*opt.Name, members, []entity.Contact{*me.ToContact()})
 		err := c.chRepo.Add(chat)
-		c.gps.Join(chat.ID, members)
+		// c.gps.Join(chat.ID, members)
 		return chat, err
 	default:
 		return entity.ChatInfo{}, errors.New("type not supported")
@@ -132,7 +132,7 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 	}
 
 	switch chat.Type {
-	case entity.Private:
+	case entity.Private, entity.Group:
 		for _, to := range chat.Members {
 			if to.ID != msg.Author.ID {
 				log.Debugf("outbox message")
@@ -141,9 +141,6 @@ func (c *Chat) Send(chatID entity.ID, content string) (*entity.Message, error) {
 				log.Debugf("outboxed message")
 			}
 		}
-		return &msg, nil
-	case entity.Group:
-		c.gps.Send(PubSubEnvelop{Topic: chatID.String(), Message: msg})
 		return &msg, nil
 	default:
 		return nil, errors.New("Chat type not supported")
@@ -201,7 +198,7 @@ func (c *Chat) Join(ci entity.ChatInfo) error {
 	if err != nil {
 		return err
 	}
-	c.gps.Join(ci.ID, ci.Admins)
+	// c.gps.Join(ci.ID, ci.Admins)
 	return nil
 }
 

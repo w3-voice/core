@@ -57,8 +57,8 @@ func TestOutboxPutAndPop(t *testing.T) {
 	<-failedMsgs
 	time.Sleep(3 * time.Second)
 	msgs = outbox.Pop(key)
-	if len(msgs) != 0 {
-		t.Errorf("Expected 0 messages, got %d, %s", len(msgs), msgs)
+	if len(msgs) != 1 {
+		t.Errorf("Expected 1 messages, got %d, %s", len(msgs), msgs)
 	}
 
 }

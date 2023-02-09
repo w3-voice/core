@@ -18,16 +18,15 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-
 var _ DirectService = (*DirectMessaging)(nil)
 
 type DirectMessaging struct {
-	host       host.Host
-	connector  Connector
-	backoff    bf.BackoffFactory
-	input      chan *Envelop
-	outbox     OutBox
-	bus        Bus
+	host      host.Host
+	connector Connector
+	backoff   bf.BackoffFactory
+	input     chan *Envelop
+	outbox    OutBox
+	bus       Bus
 }
 
 // NewDirectMessaging creates a Direct messaging service
@@ -42,13 +41,13 @@ func NewDirectMessaging(h host.Host, ebus Bus, connector Connector, input chan *
 	pl.Invite.SetHandler(h, dms.inviteHandler)
 	log.Debug("service PMS created")
 	dms.input = input
-	dms.outbox = NewOutBox(context.Background(),Config{true, 5 * time.Minute, 1 * time.Minute})
+	dms.outbox = NewOutBox(context.Background(), Config{true, 5 * time.Minute, 1 * time.Minute})
 	dms.backoff = bf.NewPolynomialBackoff(time.Second*5, time.Second*10, bf.NoJitter, time.Second, []float64{5, 7, 10}, rand.NewSource(0))
 	dms.connector = connector
 	// set static relay as needed connection
-	relayInfo, err  := peer.AddrInfoFromString(StaticRelays[0])
+	relayInfo, err := peer.AddrInfoFromString(StaticRelays[0])
 	if err != nil {
-		panic("failed to create message service: "+ err.Error())
+		panic("failed to create message service: " + err.Error())
 	}
 	relayInfo.Addrs = []ma.Multiaddr{}
 	dms.connector.Need(pl.Message.GetMeta().ServiceName, *relayInfo)
@@ -71,15 +70,24 @@ func (c *DirectMessaging) openStreamAndSend(nvlop *Envelop) error {
 		log.Error("send failed", err)
 		return err
 	}
-	err = pl.Message.Send(s, nvlop.Message.Proto().(*pb.Message))
-	if err != nil {
-		log.Error("send failed",err)
-		return err
+	switch msg := nvlop.Message.Proto().(type) {
+	case *pb.Message:
+		err = pl.Message.Send(s, msg)
+		if err != nil {
+			log.Error("send failed", err)
+			return err
+		}
+	case *pb.Request:
+		err = pl.Invite.Send(s, msg)
+		if err != nil {
+			log.Error("send failed", err)
+			return err
+		}
 	}
+
 	c.sendCompleted(nvlop)
 	return nil
 }
-
 
 func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *Envelop) {
 	for {
@@ -104,7 +112,7 @@ func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *Envelop
 			if pi.ID == c.host.ID() || pi.ID == "" {
 				continue
 			}
-			
+
 			c.connector.Need(string(nvlp.Protocol), *pi)
 			cns := h.Network().Connectedness(pi.ID)
 			switch cns {
@@ -117,7 +125,7 @@ func (c *DirectMessaging) background(ctx context.Context, nvlpCh <-chan *Envelop
 			default:
 				c.outbox.Put(pi.ID, nvlp)
 			}
-		case e:= <-ctx.Done():
+		case e := <-ctx.Done():
 			log.Errorf("context error broke sender %v", e)
 		}
 
@@ -130,7 +138,7 @@ func (c *DirectMessaging) messageHandler(msg *pb.Message) {
 }
 
 func (c *DirectMessaging) inviteHandler(msg *pb.Request) {
-	log.Debugf("invite received %s, name %s", msg.Id,msg.Name)
+	log.Debugf("invite received %s, name %s", msg.Id, msg.Name)
 	event.EmitInvite(c.bus, event.InviteReceived, entity.ToChatInfo(msg))
 }
 
@@ -139,7 +147,7 @@ func (c *DirectMessaging) Stop() {
 }
 
 func (c *DirectMessaging) sendCompleted(nvlop *Envelop) {
-	switch  msg := nvlop.Message.(type) {
+	switch msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Sent, string(msg.ID))
 	}
@@ -147,7 +155,7 @@ func (c *DirectMessaging) sendCompleted(nvlop *Envelop) {
 }
 
 func (c *DirectMessaging) sendFailed(nvlop *Envelop) {
-	switch  msg := nvlop.Message.(type) {
+	switch msg := nvlop.Message.(type) {
 	case entity.Message:
 		event.EmitMessageChange(c.bus, entity.Failed, string(msg.ID))
 	}
