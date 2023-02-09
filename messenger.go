@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 
 	"github.com/hood-chat/core/entity"
 	"github.com/hood-chat/core/event"
@@ -21,7 +20,7 @@ type Messenger struct {
 	identity IdentityAPI
 	book     ContactBookAPI
 	pms      DirectService
-	gps      PubSubService
+	// gps      PubSubService
 	chat     ChatAPI
 	hb       Builder
 	opt      Option
@@ -72,8 +71,8 @@ func (m *Messenger) Start() {
 	m.connector = NewConnector(h)
 	gpCh := make(chan string)
 	m.pms = NewDirectMessaging(h, m.bus, m.connector,make(chan*Envelop))
-	m.gps = NewGPService(context.Background(),h,m.IdentityAPI(),m.bus,gpCh,m.connector)
-	m.chat = NewChatAPI(m.store, m.book, m.pms, m.gps,m.identity)
+	// m.gps = NewGPService(context.Background(),h,m.IdentityAPI(),m.bus,gpCh,m.connector)
+	m.chat = NewChatAPI(m.store, m.book, m.pms, m.identity)
 
 	chats,err := m.chat.ChatInfos(0,0)
 	if err != nil {
